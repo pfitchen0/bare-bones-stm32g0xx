@@ -19,6 +19,8 @@ TODO: finish writing this; i am tired and want to go to bed.
 
 5. Initialize the C (& C++) Runtime environment... copy global and static variables to RAM so they can be modified during runtime, initialize uninitialized variables to zero, etc... Call constructors...
 
-ARM MCUs, like the STM32G0xx series, have what's called a "Vector Table" at fixed memory address (typically the start of flash memory). The Vector Table is essentially a look-up table of address in memory, mostly for event/interrupt handler function addresses. The first entry in the vector table is the address that the stack pointer should be initialized to. And the second entry is the address of the Reset Handler. This is the code that the MCU starts executing immediately after power-on or reset. It typically initializes the system and sets up the MCU for operation by doing the things listed above.
+## Vector Table
+
+ARM MCUs, like the STM32G0xx series, have what's called a "Vector Table" at fixed memory address (typically the start of flash memory). The Vector Table is essentially a look-up table of address in memory, mostly for event/interrupt handler function addresses. The first entry in the vector table is the address that the stack pointer should be initialized to. And the second entry is the address of the Reset Handler. This is the code that the MCU starts executing immediately after power-on or reset. It typically initializes the system and sets up the MCU for operation by doing the things listed above. The first 16 entries are reserved by ARM and are common for all ARM MCUs; the remainder of the vector table entries are for interrupt/event handlers that are specific to a particular MCU.
 
 The official "template" startup code from ST/ARM for gcc, [startup_stm32g031xx.s](https://github.com/STMicroelectronics/cmsis-device-g0/blob/master/Source/Templates/gcc/startup_stm32g031xx.s) contains everything discussed above. See that as a more official/polished example.
