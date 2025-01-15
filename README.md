@@ -5,10 +5,22 @@ This is a "bare-bones" STM32G0xx project repository. It contains example project
 
 ## Prerequisites
 
-Install the ARM compiler toolchain and standard libraries. Note that the arm-none-eabi-gcc homebrew package includes only the ARM compiler toolchain and not the standard libraries. Therefore, gcc-arm-embedded is preferred as it includes the standard libraries as well.
+Install the ARM compiler toolchain and standard libraries. Note that the `arm-none-eabi-gcc` homebrew package includes only the ARM compiler toolchain and not the C/C++ standard libraries. Therefore, `gcc-arm-embedded` is preferred as it includes the C/C++ standard libraries as well.
 
 ```
 brew install --cask gcc-arm-embedded
+```
+
+Install `make` if you don't have it already.
+
+```
+brew install make
+```
+
+More complex projects use a `bazel` based build system. Install `bazelisk` for that.
+
+```
+brew install bazelisk
 ```
 
 Install open source ST-Link drivers for flashing FW to your board.
