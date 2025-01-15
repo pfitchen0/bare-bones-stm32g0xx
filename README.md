@@ -11,13 +11,13 @@ Install the ARM compiler toolchain and standard libraries. Note that the `arm-no
 brew install --cask gcc-arm-embedded
 ```
 
-Install `make` if you don't have it already.
+Install `make` if you don't have it already. Some of the simpler projects just use `make` (like the [blink](projects/blink/README.md) example project for understanding MCU startup code and linkerscripts).
 
 ```
 brew install make
 ```
-
-More complex projects use a `bazel` based build system. Install `bazelisk` for that.
+s
+More complex projects use a `bazel` based build system instead of `make`. Install `bazelisk` for that.
 
 ```
 brew install bazelisk

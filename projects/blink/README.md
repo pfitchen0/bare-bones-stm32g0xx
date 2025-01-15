@@ -39,3 +39,22 @@ ARM MCUs, like the STM32G0xx series, have what's called a "Vector Table" at fixe
 ## References
 
 The official "template" startup code from ST/ARM for gcc, [startup_stm32g031xx.s](https://github.com/STMicroelectronics/cmsis-device-g0/blob/master/Source/Templates/gcc/startup_stm32g031xx.s) contains everything discussed above. See that as a more official/polished example. You can also find an example linkerscript from ST [here](https://github.com/STMicroelectronics/STM32CubeG0/blob/master/Projects/NUCLEO-G031K8/Templates/STM32CubeIDE/STM32G031K8TX_FLASH.ld). Note that the [startup code](https://github.com/STMicroelectronics/STM32CubeG0/blob/master/Projects/NUCLEO-G031K8/Templates/STM32CubeIDE/Application/Startup/startup_stm32g031k8tx.s) is also the same in this ST repository.
+
+## Blink From Scratch, 0 Dependencies
+
+Ok, now that we've summarized what we need to do in startup code before `main` behind the scenes, let's write a basic LED blink demo for the [Nucleo-G031K8](https://www.digikey.com/en/products/detail/stmicroelectronics/NUCLEO-G031K8/10321671) in a single .c file from scratch. We'll also need a linkerscript .ld file, and a Makefile for easy and repeatable builds.
+
+### Install Toolchain
+
+First, follow the prerequisites section in this repository's top level [README.md](../../README.md). You can skip the part about installing `bazelisk` / `bazel`. We'll just use a Makefile for this project.
+
+### Build & Flash
+
+Use the Makefile to build, flash, or clean the FW:
+
+```
+make clean
+make flash
+```
+
+You should see the onboard LED blinking.
