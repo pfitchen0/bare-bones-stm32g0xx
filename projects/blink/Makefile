@@ -13,6 +13,20 @@ CFLAGS += -g -O0
 # Enable compiler warnings.
 CFLAGS += -Wall -Wextra
 
+# Do not try to use the standard startup code included in the arm-none-eabi toolchain. Use our own
+# startup code. Plus, the default startup code doesn't handle MCU-specific things like setting the
+# proper initial stack pointer address.
+LDFLAGS = -nostartfiles
+
+# Linker flags for minimal runtime environment. Exclude all standard libraries for full control.
+# Use the much smaller newlib C runtime optimized for size and performance on microcontrollers.
+# Replace OS-dependent syscalls with stubs or minimal implementations. Allow linking against
+# specific parts of libc and libgcc if needed (e.g., for custom implementation of printf).
+LDFLAGS += -nostdlib --specs=nano.specs --specs=nosys.specs -lc -lgcc
+
+# Remove unused data and code after everything is linked together to reduce binary size.
+LDFLAGS += -Wl,--gc-section
+
 SOURCES = blink.c
 LDSCRIPT = link.ld
 OBJECTS = blink.o
