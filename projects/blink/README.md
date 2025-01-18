@@ -22,11 +22,9 @@ Well, it depends on the particular MCU, but in general something like the follow
 
     b. Initialize uninitialized variables to zero. Upon reset, RAM may not be initialized to 0, so we cannot assume our uninitialized variables are default initialized to 0 or null like we expect unless we do this manually in our startup code.
 
-    c. Call `__libc_init_array`. This function calls static/global variable constructors and otherwise initializes more complex static/global variables that can't simply be initialized with assignment. How this works: linker magic...
-
-    * The linker collects a list of function pointers to constructors/initialization functions that need to be called. This list gets stored in a special memory section typically defined in the linkerscript as `.init_array`.
-
-    * The startup code loops through the function pointers in the `.init_array` section and calls each one.
+    > **c. Only for C++ programs, or C programs with functions marked with `__attribute__((constructor))`**: Call `__libc_init_array`. This function calls static/global variable constructors and otherwise initializes more complex static/global variables that can't simply be initialized with assignment. How this works: linker magic...
+    > * The linker collects a list of function pointers to constructors/initialization functions that need to be called. This list gets stored in a special memory section typically defined in the linkerscript as `.init_array`.
+    > * The startup code loops through the function pointers in the `.init_array` section and calls each one.
 
 6. Finally, we can call `main`!
 
@@ -99,16 +97,31 @@ MEMORY {
 }
 ```
 
-Next, specify the entry point function for the firmware. This is ultimately where our startup code, which sets the stack pointer, copies global/static variables from flash to RAM, etc... is implemented. We'll get to this in a moment. For now, call it `ResetHandler` or something similar.
+Next, specify the entry point function for the firmware. This is ultimately where our startup code - which sets the stack pointer, copies global/static variables from flash to RAM, etc... - is implemented. We'll get to this in a moment. For now, call it `ResetHandler` or something similar.
 
 It's also convenient to calculate and store the desired initial stack pointer value in the linkerscript so that our startup code can use it without needing to know the final RAM address. Again, this will be more clear when we get to the startup code.
 
 ```
 ENTRY(ResetHandler)
-initial_sp = ORIGIN(RAM) + LENGTH(RAM);
+initial_stack_pointer = ORIGIN(RAM) + LENGTH(RAM);
 ```
 
-TODO: Now the fun part... defining sections
+Now the linkerscript just needs to outline how each section should be placed in memory. These are the minimum set of sections that need to be placed:
+* `.vector_table`:
+    * This is the Vector Table describer earlier. It's basically a look up take for interrupt/event handlers, starting with the ResetHandler (our startup code). It also stores the initial stack, which is actually placed first in the LUT (then the ResetHandler and all other handler function pointers follow). The Vector Table must be placed right at the start of flash memory (you can technically move the vector table, but you must remap each entry accordingly - it's good practice to avoid doing this unless absolutely necessary). We explicitly tell the linker not to rearrange or move the vector table with the `KEEP` macro. Also, we can name this section whatever we'd like, so long as it matches our startup code; I chose "vector_table", but the standard CMSIS template from ST uses "isr_vectors". The remainder of the section names below come from the gcc toolchain, so we can't easily change them.
+* `.text`:
+    * This section contains our program code. We place this section in flash memory.
+* `.rodata`:
+    * This section contains read only data like constants or string literals. It gets placed in flash memory as well, typically right after the `.text` section (and some linker scripts place it within the `.text` section).
+* `.data`:
+    * This section contains our initialized variables that need to be copied into RAM by our startup code.
+
+> * **Important Note**: In C programs with functions marked as `__attribute__((constructor))`, or C++ programs with classes, there might be sections called `.preinit_array`, `.init_array`, and `.fini_array`. These sections are used to provide a well-defined order of initialization of global/static variables that might need to have constructors called during startup. This is handled in our startup code by calling `__libc_init_array` as discussed earlier. To keep things simple, we will not include these sections in the linkerscript and therefore will avoid using constructors.
+
+* `.bss`:
+    * This section contains our *un*initialized (and zero initialized) variables that need to be placed into RAM and *zero initialized* by our startup code.
+
+These are just the bare-minimum set of sections. More complicated systems might have separate sections for an A/B FW bootloader, with FW partiion A and FW partition B, for example.
 
 ### Build & Flash
 
