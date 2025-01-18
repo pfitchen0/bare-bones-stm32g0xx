@@ -52,7 +52,19 @@ First, follow the prerequisites section in this repository's top level [README.m
 
 Before writing any code, let's start with a super basic `Makefile`. Specify the GCC compiler and linker, then list command line flags for each of them.
 
+```
+PREFIX = arm-none-eabi
+CC = $(PREFIX)-gcc
+LD = $(PREFIX)-ld
+```
+
 At a minimum, the compiler needs to know the target cpu architecture. We specify this with `-mcpu=cortex-m0plus`. We also tell the compiler it can use ARM's smaller 16bit "Thumb" instructions were possible with `-mthumb` - this is common practice for resource constrained embedded systems, using thumb instructions reduces code size. Next, tell the compiler to include debugging information and *not* do any optimizations with `-g` and `-O0` respectively - this will make it easier to see what is going on under the hood after the program is compiled. Finally, enable compiler warnings with `-Wall` and `-Wextra`.
+
+```
+CFLAGS = -mcpu=cortex-m0plus -mthumb
+CFLAGS += -g -O0
+CFLAGS += -Wall -Wextra
+```
 
 The linker flags are a bit more interesting. First, we want to tell the linker *not* to include the standard startup code provided by the toolchain using the `-nostartfiles` flag. We want to write our own (plus, the standard startup code usually won't fit your MCU as some details (like the initial stack pointer) vary from one MCU to another).
 
@@ -66,7 +78,31 @@ Great! Let's get the linkerscript in order next...
 
 ### Linkerscript
 
-TODO: define memory maps, define sections, specify where they each go...
+Keep the STM32G031xx [datasheet](https://www.st.com/resource/en/datasheet/stm32g031c6.pdf) and [reference manual](https://www.st.com/resource/en/reference_manual/rm0444-stm32g0x1-advanced-armbased-32bit-mcus-stmicroelectronics.pdf) handy for this section. Feel free to reference [this template linkerscript](https://github.com/STMicroelectronics/STM32CubeG0/blob/master/Projects/NUCLEO-G031K8/Templates/STM32CubeIDE/STM32G031K8TX_FLASH.ld) from ST as well.
+
+The linkerscript tells the linker how to arrange everything in memory in the final binary. Therefore, the linkerscript must first describe the flash and RAM memory partitions of the target MCU. From pg. 61 of the [reference manual](https://www.st.com/resource/en/reference_manual/rm0444-stm32g0x1-advanced-armbased-32bit-mcus-stmicroelectronics.pdf):
+
+![STM32G031xx Memory Map](../../assets/stm32g031_memory_map.png)
+
+Flash memory starts at 0x08000000 and is 64KB long. RAM starts at 0x20000000 and is 8KB long. Specify this in `link.ld` with the following:
+
+```
+MEMORY {
+    FLASH (RX) : ORIGIN = 0x08000000, LENGTH = 64K
+    RAM (RWX) : ORIGIN = 0x20000000, LENGTH = 8K
+}
+```
+
+Next, specify the entry point function for the firmware. This is ultimately where our startup code, which sets the stack pointer, copies global/static variables from flash to RAM, etc... is implemented. We'll get to this in a moment. For now, call it `ResetHandler` or something similar.
+
+It's also convenient to calculate and store the desired initial stack pointer value in the linkerscript so that our startup code can use it without needing to know the final RAM address. Again, this will be more clear when we get to the startup code.
+
+```
+ENTRY(ResetHandler)
+initial_sp = ORIGIN(RAM) + LENGTH(RAM);
+```
+
+TODO: Now the fun part... defining sections
 
 ### Build & Flash
 
