@@ -74,6 +74,12 @@ Altogether, the `-nostdlib`, `--specs=nano.specs`, `--specs=nosys.specs`, `-lc`,
 
 Finally, we add `-Wl,--gc-section` to the linker flags to tell the linker to remove any unused code or data after everything is linked together (sort of like garbage collection at the end of linking).
 
+```
+LDFLAGS = -nostartfiles
+LDFLAGS += -nostdlib --specs=nano.specs --specs=nosys.specs -lc -lgcc
+LDFLAGS += -Wl,--gc-section
+```
+
 Great! Let's get the linkerscript in order next...
 
 ### Linkerscript
