@@ -123,6 +123,54 @@ Now the linkerscript just needs to outline how each section should be placed in 
 
 These are just the bare-minimum set of sections. More complicated systems might have separate sections for an A/B FW bootloader, with FW partiion A and FW partition B, for example.
 
+Here's what the sections look like in our `link.ld`:
+
+```
+SECTIONS {
+    .vector_table : {
+        . = ALIGN(4);
+        KEEP(*(.vector_table))
+        . = ALIGN(4);
+    } > FLASH
+
+    .text : {
+        . = ALIGN(4);
+        *(.text*)
+        . = ALIGN(4);
+    } > FLASH
+
+    .rodata : {
+        . = ALIGN(4);
+        *(.rodata*)
+        . = ALIGN(4);
+    } > FLASH
+
+    /* We aren't supporting C/C++ constructors or anything that would require .init_data */
+    /* (and similar) sections, but if we were, they would go here */
+
+    flash_data_start = LOADADDR(.data);
+    .data : {
+        . = ALIGN(4);
+        ram_data_start = .;
+        *(.data*)
+        . = ALIGN(4);
+        ram_data_end = .;
+    }
+
+    .bss : {
+        . = ALIGN(4);
+        bss_start = .;
+        *(.bss*)
+        . = ALIGN(4);
+        bss_end = .;
+    } > RAM
+}
+```
+
+A few notes:
+* We use `ALIGN(4)` at the beginning and end of each section to ensure each section is aligned to a word boundary. It isn't strictly necessary to specify this alignment, since the vector table, for example, is already placed at a word aligned address, but it's good practice to specify alignment explicitly.
+* We define symbols that our startup code can use to copy initialized data to RAM, and zero initialize the bss section in RAM as well. We need: `flash_data_start`, `ram_data_start`, `ram_data_end`, `bss_start`, and `bss_end`.
+
 ### Build & Flash
 
 Use the `Makefile` to build, flash, or clean the FW:
