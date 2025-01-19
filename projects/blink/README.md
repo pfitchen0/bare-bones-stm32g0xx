@@ -48,7 +48,7 @@ First, follow the prerequisites section in this repository's top level [README.m
 
 ### Makefile
 
-Before writing any code, let's start with a super basic `Makefile`. Specify the GCC compiler and linker, then list command line flags for each of them.
+Before writing any code, let's start with a super basic `Makefile`. Specify the GCC compiler and linker, then list command line flags for each of them. Many projects will also use an assembler for assembly source files (common for startup code, for example), but we will not need an assembler for our basic blink example.
 
 ```
 PREFIX = arm-none-eabi
@@ -64,7 +64,9 @@ CFLAGS += -g -O0
 CFLAGS += -Wall -Wextra
 ```
 
-The linker flags are a bit more interesting. First, we want to tell the linker *not* to include the standard startup code provided by the toolchain using the `-nostartfiles` flag. We want to write our own (plus, the standard startup code usually won't fit your MCU as some details (like the initial stack pointer) vary from one MCU to another).
+If we were using an assembler, we'd also likely want to define a list of assembler flags. The same goes for compiling C++ source files as well. Some flags, like those specifying our target architecture for cross-compilation, for example, might be common between assembly, C, and C++ source file compilation. It's fairly common to store these in a separate Makefile variable like `ARCH_FLAGS` or something like that. But we're keeping things simple for this example.
+
+The linker flags are a bit more interesting. First, we want to tell the linker *not* to include the standard startup code provided by the toolchain using the `-nostartfiles` flag. We want to write our own (plus, the standard startup code usually won't fit your MCU as some details vary from one MCU to another).
 
 We also tell the linker not to link against any of the standard C libraries with the `-nostdlib` flag. This is an even broader directive than `-nolibc` which is also commonly used. `-nostdlib` also excludes libraries like  `libgcc` (the GCC support library) or `libm` (the math library). We exclude these standard libraries because they are often unneeded, or larger than we can really afford for our resource constrained microcontroller-based embedded system. Instead, we allow the linker to link against a smaller and more efficient set of libraries with the `--specs=nano.specs` flag. Specifically, this tells the linker it can use the [newlib](https://en.wikipedia.org/wiki/Newlib) library. We also tell the linker to replace the standard C library functions that rely on OS syscalls with stubs using the `--specs=nosys.specs` flag. This declares a set of function stubs ("syscalls" like `_close` or `_sbrk`) that we can define if we need to emulate the behavior of a system call (like `printf`). We also add `-lc` and `-lgcc` flags to allow linking against just the bare minimum set of C standard functions like `strcmp`. While `-nostdlib` and `-lc`/`-lgcc` might seem contradictory, they can be used together to achieve fine-grained control over what parts of the standard library are available to the linker.
 
@@ -97,13 +99,13 @@ MEMORY {
 }
 ```
 
-Next, specify the entry point function for the firmware. This is ultimately where our startup code - which sets the stack pointer, copies global/static variables from flash to RAM, etc... - is implemented. We'll get to this in a moment. For now, call it `ResetHandler` or something similar.
+Next, specify the entry point function for the firmware. This is ultimately where our startup code is implemented. We'll get to this in a moment. Call it `ResetHandler` or something similar.
 
 It's also convenient to calculate and store the desired initial stack pointer value in the linkerscript so that our startup code can use it without needing to know the final RAM address. Again, this will be more clear when we get to the startup code.
 
 ```
 ENTRY(ResetHandler)
-initial_stack_pointer = ORIGIN(RAM) + LENGTH(RAM);
+initial_stack_ptr = ORIGIN(RAM) + LENGTH(RAM);
 ```
 
 Now the linkerscript just needs to outline how each section should be placed in memory. These are the minimum set of sections that need to be placed:
@@ -170,6 +172,17 @@ SECTIONS {
 A few notes:
 * We use `ALIGN(4)` at the beginning and end of each section to ensure each section is aligned to a word boundary. It isn't strictly necessary to specify this alignment, since the vector table, for example, is already placed at a word aligned address, but it's good practice to specify alignment explicitly.
 * We define symbols that our startup code can use to copy initialized data to RAM, and zero initialize the bss section in RAM as well. We need: `flash_data_start`, `ram_data_start`, `ram_data_end`, `bss_start`, and `bss_end`.
+
+### blink.c
+
+Finally, on to some code!
+
+We'll write everything, including the startup code, in `blink.c`. One quick note: startup code is often written in assembly. We need to be careful implementing startup code in C, because the C runtime environment won't be completely set up yet (that's what our startup code does!).
+
+Let's start by defining the vector table. The vector table for the STM32G031K8 MCU on our Nucleo board is defined in Table 61 on pg. 312 of the [reference manual](https://www.st.com/resource/en/reference_manual/rm0444-stm32g0x1-advanced-armbased-32bit-mcus-stmicroelectronics.pdf). There are 16 Cortex-M0+ entries reserved by ARM first (as we discussed above), followed by 32 STM32G0xx-specific entries. We can define a mostly empty vector table like so:
+
+```
+
 
 ### Build & Flash
 

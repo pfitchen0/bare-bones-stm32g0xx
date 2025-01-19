@@ -9,7 +9,7 @@ ENTRY(ResetHandler)
 
 /* Store the desired initial stack pointer in a symbol for our startup code to use */
 /* Pick the end of the RAM region - the stack grows down! */
-initial_stack_pointer = ORIGIN(RAM) + LENGTH(RAM);
+initial_stack_ptr = ORIGIN(RAM) + LENGTH(RAM);
 
 /* Specify how sections are arranged in memory, see README for more info */
 /* Follow best practice of explicitly word aligning the beginning and end of each section, even */

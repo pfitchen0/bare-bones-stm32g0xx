@@ -1,6 +1,5 @@
 PREFIX = arm-none-eabi
 CC = $(PREFIX)-gcc
-LD = $(PREFIX)-ld
 
 # Specify the target MCU architecture and allow the compiler to use ARM's "thumb" instructions,
 # which is basically a set of 16bit instructions that can be used to help reduce code size in
@@ -29,19 +28,15 @@ LDFLAGS += -Wl,--gc-section
 
 SOURCES = blink.c
 LDSCRIPT = link.ld
-OBJECTS = blink.o
 ELF = blink.elf
 
 all: $(ELF)
 
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(ELF): $(OBJECTS)
-	$(LD) $(LDFLAGS) $(OBJECTS) -o $@
+$(ELF): $(SOURCES)
+	$(CC) $(CFLAGS) $(LDFLAGS) -T ${LDSCRIPT} $(SOURCES) -o $@
 
 clean:
-	rm -rf $(OBJECTS) $(ELF)
+	rm -rf $(ELF)
 
 flash: $(ELF)
 	st-flash --reset write $< 0x8000000
