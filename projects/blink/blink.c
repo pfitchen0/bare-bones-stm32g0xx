@@ -8,6 +8,10 @@ void ResetHandler() {
     // automatically. They use the first entry in the vector table as the initial stack pointer, so
     // we do need to make sure the target initial stack pointer is specified there.
 
+    // ST example startup script calls SystemInit to allow changing the default clock configuration
+    // at this stage. However, I think it is OK to skip that here and configure clocks as desired
+    // at the start of main().
+
     // Defined in the linkerscript:
     extern unsigned int flash_data_start, ram_data_start, ram_data_end, bss_start, bss_end;
 
