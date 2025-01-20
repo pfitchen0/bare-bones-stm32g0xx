@@ -1,7 +1,6 @@
 #define RCC_IOPENR 0x40021034
 #define GPIOC_MODER 0x50000800
 #define GPIOC_ODR 0x50000814
-#define GPIOC_BSRR 0x50000818
 
 static const unsigned int kDelayIterations = 1000000;
 

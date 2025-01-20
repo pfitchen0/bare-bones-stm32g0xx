@@ -324,7 +324,33 @@ We are almost done! Now all we need to do is update `main` to blink the user LED
 
 #### Make the LED Blink!
 
+The user LED is on GPIO pin PC6 on the STM32G0xx nucleo board according to the [user manual](https://www.st.com/resource/en/user_manual/dm00622380-stm32g0-nucleo-32-board-mb1455-stmicroelectronics.pdf). PC6 means GPIO port C, pin 6. The *bare miniumum* things we need to do to drive the LED on/off are:
 
+1. Enable the GPIOC peripheral clock.
+
+2. Configure GPIOC pin 6 to be an output push-pull.
+
+From section 5.4.13 on page 192 in the [reference manual](https://www.st.com/resource/en/reference_manual/rm0444-stm32g0x1-advanced-armbased-32bit-mcus-stmicroelectronics.pdf), we can enable the GPIOC clock by writing a 1 to the 2nd bit (0 indexed) in the `RCC_IOPENR` register. And to configure pin 6 of GPIOC as an output push-pull, we need to write `0b01` to bits 12 & 13 in the `GPIOC_MODER` register (section 7.5.1, page 238 in the [refernce manual](https://www.st.com/resource/en/reference_manual/rm0444-stm32g0x1-advanced-armbased-32bit-mcus-stmicroelectronics.pdf)).
+
+Setting the LED is also easy. We write a 1 to the 6th bit in the `GPIOC_ODR` register to turn the LED on, and write a 0 to the same bit to turn it off.
+
+All of these peripheral registers are in the **0x4000000** - **0x50001FFF** memory region, as defined in the memory map from Figure 2 on page 61 of the [reference manual](https://www.st.com/resource/en/reference_manual/rm0444-stm32g0x1-advanced-armbased-32bit-mcus-stmicroelectronics.pdf). See the memory map again below:
+
+![STM32G031xx Memory Map](../../assets/stm32g031_memory_map.png)
+
+The tables following the memory map in the reference manual further outline where all of the peripheral registers live. See the below screenshot of Table 6 on page 64 of the [reference manual](https://www.st.com/resource/en/reference_manual/rm0444-stm32g0x1-advanced-armbased-32bit-mcus-stmicroelectronics.pdf).
+
+![STM32G031xx Memory Map](../../assets/stm32g031_peripheral_memory_map.png)
+
+We can see that the RCC registers are in the **0x40021000** - **0x400213FF** region, and the GPIOC registers are in the 0x50000800 - 0x50000BFF region. Following the links in the right column of Table 6 for the RCC and GPIOC peripherals, we see Table 37 and Table 46 respectively. These tables list the offset for each register for these peripherals. This "offset" just needs to be added to the base address for both peripherals to get the final register addresses.
+
+Let's define these register addresses at the top of `blink.c`:
+
+```
+#define RCC_IOPENR 0x40021034
+#define GPIOC_MODER 0x50000800
+#define GPIOC_ODR 0x50000814
+```
 
 ### Build & Flash
 
