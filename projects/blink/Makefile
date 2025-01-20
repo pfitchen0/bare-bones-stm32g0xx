@@ -1,5 +1,7 @@
+# Toolchain definitions.
 PREFIX = arm-none-eabi
 CC = $(PREFIX)-gcc
+OBJCOPY = $(PREFIX)-objcopy
 
 # Specify the target MCU architecture and allow the compiler to use ARM's "thumb" instructions,
 # which is basically a set of 16bit instructions that can be used to help reduce code size in
@@ -26,19 +28,32 @@ LDFLAGS += -nostdlib --specs=nano.specs --specs=nosys.specs -lc -lgcc
 # Remove unused data and code after everything is linked together to reduce binary size.
 LDFLAGS += -Wl,--gc-section
 
-SOURCES = blink.c
+# Linkerscript to use.
 LDSCRIPT = link.ld
+
+# Source files.
+SOURCES = blink.c
+
+# Output files.
 ELF = blink.elf
+BIN = blink.bin
 
-all: $(ELF)
-
+# Compile and link sources into a .elf.
 $(ELF): $(SOURCES)
 	$(CC) $(CFLAGS) $(LDFLAGS) -T ${LDSCRIPT} $(SOURCES) -o $@
 
-clean:
-	rm -rf $(ELF)
+# Convert the .elf to a simple binary .bin for flashing.
+$(BIN): $(ELF)
+	$(OBJCOPY) -O binary $< $@
 
-flash: $(ELF)
+# Remove intermediate and output build files for a fresh build.
+clean:
+	rm -rf $(ELF) $(BIN)
+
+# Flash the final .bin to the STM32G031 Nucleo board via the onboard ST-Link programmer.
+flash: $(BIN)
 	st-flash --reset write $< 0x8000000
+
+all: $(ELF)
 
 .PHONY: all clean flash

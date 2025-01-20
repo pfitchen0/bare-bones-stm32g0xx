@@ -1,8 +1,41 @@
+#define RCC_IOPENR 0x40021034
+#define GPIOC_MODER 0x50000800
+#define GPIOC_ODR 0x50000814
+#define GPIOC_BSRR 0x50000818
+
+static const unsigned int kDelayIterations = 1000000;
+
+void delay(volatile unsigned int iterations) {
+    while (iterations != 0) {
+        iterations--;
+    }
+}
+
 int main() {
+    // The user LED is on PC6 (i.e. port GPIOC pin 6)
+
+    // Enable GPIOC clock by setting the GPIOCEN bit in RCC_IOPENR
+    *(unsigned int *)(RCC_IOPENR) |= (1 << 2);
+
+    // Set the PC6 pin mode to output
+    *(unsigned int *)(GPIOC_MODER) &= ~(1 << 13);
+    *(unsigned int *)(GPIOC_MODER) |= (1 << 12);
+
+    while(1) {
+        // Set the PC6 pin high
+        *(unsigned int *)(GPIOC_ODR) |= (1 << 6);
+
+        delay(kDelayIterations);
+
+        // Set the PC6 pin low
+        *(unsigned int *)(GPIOC_ODR) &= ~(1 << 6);
+
+        delay(kDelayIterations);
+    }
+
     return 0;
 }
 
-__attribute__((naked, noreturn))
 void ResetHandler() {
     // Normally we'd need to set the stack pointer sp register here, but the STM32G0xx parts do this
     // automatically. They use the first entry in the vector table as the initial stack pointer, so
@@ -45,9 +78,12 @@ void ResetHandler() {
 // Defined in the linkerscript.
 extern void initial_stack_ptr();
 
+// Define the vector table, which is an array of 16 + 32 constant function pointers.
+// There are 16 interrupt/event handlers reserved by ARM, and 32 specific to this STM32G0xx MCU.
+// Make sure this vector table array gets placed in the .vector_table section.
 __attribute__((section(".vector_table")))
 void (*const vector_table[16 + 32])() = {
     initial_stack_ptr,
     ResetHandler,
-    // Other event/interrupt handler function pointers would go here.
+    // Other interrupt/event handler function pointers would go here.
 };

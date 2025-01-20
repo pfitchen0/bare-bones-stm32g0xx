@@ -48,12 +48,12 @@ First, follow the prerequisites section in this repository's top level [README.m
 
 ### Makefile
 
-Before writing any code, let's start with a super basic `Makefile`. Specify the GCC compiler and linker, then list command line flags for each of them. Many projects will also use an assembler for assembly source files (common for startup code, for example), but we will not need an assembler for our basic blink example.
+Before writing any code, let's start with a super basic `Makefile`. Specify the GCC toolchain prefix, then compiler first. Many projects will require using the linker `ld` separately from the `gcc` compiler, but for our simple blink demo we can compile and "link" our single source file with just the `gcc` compiler. Many projects will also use an assembler `as` for assembly source files (common for startup code, for example), but we will not need an assembler for our basic blink example, which is just a single C file. However, we do need `objcopy` to convert the output .elf file into a simple .bin file that can be programmed into our MCU's flash memory.
 
 ```
 PREFIX = arm-none-eabi
 CC = $(PREFIX)-gcc
-LD = $(PREFIX)-ld
+OBJCOPY = $(PREFIX)-objcopy
 ```
 
 At a minimum, the compiler needs to know the target cpu architecture. We specify this with `-mcpu=cortex-m0plus`. We also tell the compiler it can use ARM's smaller 16bit "Thumb" instructions were possible with `-mthumb` - this is common practice for resource constrained embedded systems, using thumb instructions reduces code size. Next, tell the compiler to include debugging information and *not* do any optimizations with `-g` and `-O0` respectively - this will make it easier to see what is going on under the hood after the program is compiled. Finally, enable compiler warnings with `-Wall` and `-Wextra`.
@@ -79,6 +79,39 @@ LDFLAGS = -nostartfiles
 LDFLAGS += -nostdlib --specs=nano.specs --specs=nosys.specs -lc -lgcc
 LDFLAGS += -Wl,--gc-section
 ```
+
+Next, list the linkerscript, source file, and define the intermediate and final output .elf and .bin files:
+
+```
+LDSCRIPT = link.ld
+SOURCES = blink.c
+ELF = blink.elf
+BIN = blink.bin
+```
+
+And now the `Makefile` rules:
+
+```
+$(ELF): $(SOURCES)
+	$(CC) $(CFLAGS) $(LDFLAGS) -T ${LDSCRIPT} $(SOURCES) -o $@
+
+$(BIN): $(ELF)
+	$(OBJCOPY) -O binary $< $@
+
+clean:
+	rm -rf $(ELF) $(BIN)
+
+flash: $(BIN)
+	st-flash --reset write $< 0x08000000
+
+all: $(ELF)
+
+.PHONY: all clean flash
+```
+
+The above rules allow us to: (1) build and "link" our single `blink.c` file into `blink.elf`; (2) objcopy that `blink.elf` into `blink.bin` that can be directly placed in our MCU's flash memory; (3) clean our build (i.e. remove intermediate and final output files for a "clean" slate to start our next build from scratch); and (4) take `blink.bin` and place it in our STM32G031's flash memory at address `0x08000000`. From the STM32G0xx memory map defined in the [reference manual](https://www.st.com/resource/en/reference_manual/rm0444-stm32g0x1-advanced-armbased-32bit-mcus-stmicroelectronics.pdf), we can see that `0x08000000` is the starting location for our firmware programs in flash memory (this is common for every STM32 MCU that I know of, but may not be true for other MCU families - check your part's documentation). More on this to follow in the next section on linkerscripts.
+
+The `all` and `.PHONY` targets are special `Makefile` rules. `all` is the default target that will be built if you just run `make`. `.PHONY` is used to specify which build rule targets are *not* the name of a file. So, for example, the `$(BIN)` rule is not phony, but `clean`, `flash`, and `all` are.
 
 Great! Let's get the linkerscript in order next...
 
@@ -175,13 +208,122 @@ A few notes:
 
 ### blink.c
 
+#### Startup + Skeleton Code First 
+
 Finally, on to some code!
 
 We'll write everything, including the startup code, in `blink.c`. One quick note: startup code is often written in assembly. We need to be careful implementing startup code in C, because the C runtime environment won't be completely set up yet (that's what our startup code does!).
 
-Let's start by defining the vector table. The vector table for the STM32G031K8 MCU on our Nucleo board is defined in Table 61 on pg. 312 of the [reference manual](https://www.st.com/resource/en/reference_manual/rm0444-stm32g0x1-advanced-armbased-32bit-mcus-stmicroelectronics.pdf). There are 16 Cortex-M0+ entries reserved by ARM first (as we discussed above), followed by 32 STM32G0xx-specific entries. We can define a mostly empty vector table like so:
+For starters, every good C program needs a `main` function. For now we'll leave it blank.
 
 ```
+int main() {
+    return 0;
+}
+```
+
+Next, we need to define the `ResetHandler` function referenced by our linkerscript. This is where our startup code will go. Here's a quick summary of the startup routine, which we described earlier:
+
+1. If we did need to store the initial stack pointer in the sp register, do that first with a few assembly instructions.
+
+2. ST's example startup code calls `SystemInit`, which users can override with their own code for things like clock configuration. However, I can't think of a reason this needs to happen here rather than at the start of `main`, where the rest of the C runtime environment will be configured. I prefer to do clock (and other peripheral) initialization there, so skip this step in our code as well.
+
+3. We then copy the `.data` section from flash to RAM, and set the `.bss` section in RAM to 0. It would be nice to use things like `memcopy` and `memset`, but that might actually be a bad idea for two reasons (described below). So instead we use basic loops to do this by hand ourselves.
+
+    * We might want to use this startup code in a project that does *not* need or even link in the C standard libraries containing `memcopy` and `memset`.
+
+    * Even if our project includes `memcopy` and `memset`, we don't want to make any assumptions about their implementations. Remember, we are copying initialized global/static variables and constants from flash to RAM so that they can be used. Similarly we are making sure that uninitialized variables are set to 0 as we typically expect in a C program. If the `memcopy` or `memset` implementations rely on global/static initialized variables, constants, or default initialized to 0 variables, then we cannot trust their implementations in our startup code.
+
+4. If we needed to use call constructors or otherwise initialize more complex variables that cannot be initialized just with assignment prior to calling main, then we would call `__libc_init_array()` next, or implement similar functionality ourselves. Basically, we'd add the `.init_array` section to our linkerscript, and then the linker would populate this section with a bunch of function pointers to the constructors that we'd need to call at this stage in our startup code. We'd loop through that list of function pointers here, and call each one. The `__libc_init_array()` function is usually provided by whatever C library we are using (like newlib), so it is uncommon to have to write it yourself.
+
+5. Finally we can call `main`!
+
+6. In case `main` returns unexpectedly, add an infinite while loop at the end of our `ResetHandler`. Alternatively we could jump to some sort of hard fault handler or something similar here if we had something like that.
+
+```
+void ResetHandler() {
+    // Set stack pointer register if needed.
+
+    // Defined in the linkerscript.
+    extern unsigned int flash_data_start, ram_data_start, ram_data_end, bss_start, bss_end;
+
+    unsigned int *flash_data_src = &flash_data_start;
+    unsigned int *ram_data_dst = &ram_data_start;
+    while (ram_data_dst < &ram_data_end) {
+        *ram_data_dst++ = *flash_data_src++;
+    }
+
+    for (unsigned int *bss_idx = &bss_start; bss_idx < &bss_end; bss_idx++) {
+        *bss_idx = 0;
+    }
+
+    // Call __libc_init_array() or implement ourselves if needed.
+
+    main();
+
+    while(1);
+}
+```
+
+Now the last thing we need to do is define the vector table. The vector table for the STM32G031K8 MCU on our Nucleo board is defined in Table 61 on pg. 312 of the [reference manual](https://www.st.com/resource/en/reference_manual/rm0444-stm32g0x1-advanced-armbased-32bit-mcus-stmicroelectronics.pdf). There are 16 Cortex-M0+ entries reserved by ARM first (as we discussed above), followed by 32 STM32G0xx-specific entries. We can define a mostly empty vector table as an array of constant function pointers like so:
+
+```
+extern void initial_stack_ptr();
+
+__attribute__((section(".vector_table")))
+void (*const vector_table[16 + 32])() = {
+    initial_stack_ptr,
+    ResetHandler,
+    // Other event/interrupt handler function pointers would go here.
+};
+```
+
+We use `__attribute__((section(".vector_table)))` to make sure this gets placed in the `.vector_table` section. In our minimal vector table, we've just placed the `initial_stack_ptr` defined in our linkerscript, and the `ResetHandler` defined above.
+
+Here's what our `blink.c` should look like now:
+
+```
+int main() {
+    return 0;
+}
+
+void ResetHandler() {
+    // Set stack pointer register if needed.
+
+    // Defined in the linkerscript.
+    extern unsigned int flash_data_start, ram_data_start, ram_data_end, bss_start, bss_end;
+
+    unsigned int *flash_data_src = &flash_data_start;
+    unsigned int *ram_data_dst = &ram_data_start;
+    while (ram_data_dst < &ram_data_end) {
+        *ram_data_dst++ = *flash_data_src++;
+    }
+
+    for (unsigned int *bss_idx = &bss_start; bss_idx < &bss_end; bss_idx++) {
+        *bss_idx = 0;
+    }
+
+    // Call __libc_init_array() or implement ourselves if needed.
+
+    main();
+
+    while(1);
+}
+
+extern void initial_stack_ptr();
+
+__attribute__((section(".vector_table")))
+void (*const vector_table[16 + 32])() = {
+    initial_stack_ptr,
+    ResetHandler,
+    // Other event/interrupt handler function pointers would go here.
+};
+```
+
+We are almost done! Now all we need to do is update `main` to blink the user LED on/off.
+
+#### Make the LED Blink!
+
 
 
 ### Build & Flash
