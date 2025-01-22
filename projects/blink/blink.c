@@ -1,10 +1,12 @@
+#include <stdint.h>
+
 #define RCC_IOPENR 0x40021034
 #define GPIOC_MODER 0x50000800
 #define GPIOC_ODR 0x50000814
 
-static const unsigned int kDelayIterations = 1000000;
+static const uint32_t kDelayIterations = 1000000;
 
-void delay(volatile unsigned int iterations) {
+void delay(volatile uint32_t iterations) {
     while (iterations != 0) {
         iterations--;
     }
@@ -14,20 +16,20 @@ int main() {
     // The user LED is on PC6 (i.e. port GPIOC pin 6)
 
     // Enable GPIOC clock by setting the GPIOCEN bit in RCC_IOPENR
-    *(unsigned int *)(RCC_IOPENR) |= (1 << 2);
+    *(uint32_t *)(RCC_IOPENR) |= (1 << 2);
 
     // Set the PC6 pin mode to output
-    *(unsigned int *)(GPIOC_MODER) = (*(unsigned int *)(GPIOC_MODER) & ~(0b11 << 12)) |
+    *(uint32_t *)(GPIOC_MODER) = (*(uint32_t *)(GPIOC_MODER) & ~(0b11 << 12)) |
                                      (0b01 << 12);
 
     while(1) {
         // Set the PC6 pin high
-        *(unsigned int *)(GPIOC_ODR) |= (1 << 6);
+        *(uint32_t *)(GPIOC_ODR) |= (1 << 6);
 
         delay(kDelayIterations);
 
         // Set the PC6 pin low
-        *(unsigned int *)(GPIOC_ODR) &= ~(1 << 6);
+        *(uint32_t *)(GPIOC_ODR) &= ~(1 << 6);
 
         delay(kDelayIterations);
     }
@@ -45,21 +47,21 @@ void ResetHandler() {
     // at the start of main().
 
     // Defined in the linkerscript:
-    extern unsigned int flash_data_start, ram_data_start, ram_data_end, bss_start, bss_end;
+    extern uint32_t flash_data_start, ram_data_start, ram_data_end, bss_start, bss_end;
 
     // We basically want to memcpy the .data section from flash to RAM, and memset the .bss section
     // to zero, but we can't use memcpy and memset because we are still setting up the C runtime
     // environment. Use loops and pointers instead.
 
     // Copy .data from flash to RAM.
-    unsigned int *flash_data_src = &flash_data_start;
-    unsigned int *ram_data_dst = &ram_data_start;
+    uint32_t *flash_data_src = &flash_data_start;
+    uint32_t *ram_data_dst = &ram_data_start;
     while (ram_data_dst < &ram_data_end) {
         *ram_data_dst++ = *flash_data_src++;
     }
 
     // Zero-initialize .bss section.
-    for (unsigned int *bss_idx = &bss_start; bss_idx < &bss_end; bss_idx++) {
+    for (uint32_t *bss_idx = &bss_start; bss_idx < &bss_end; bss_idx++) {
         *bss_idx = 0;
     }
 
