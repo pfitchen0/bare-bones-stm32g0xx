@@ -17,8 +17,8 @@ int main() {
     *(unsigned int *)(RCC_IOPENR) |= (1 << 2);
 
     // Set the PC6 pin mode to output
-    *(unsigned int *)(GPIOC_MODER) &= ~(1 << 13);
-    *(unsigned int *)(GPIOC_MODER) |= (1 << 12);
+    *(unsigned int *)(GPIOC_MODER) = (*(unsigned int *)(GPIOC_MODER) & ~(0b11 << 12)) |
+                                     (0b01 << 12);
 
     while(1) {
         // Set the PC6 pin high
