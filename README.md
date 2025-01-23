@@ -16,12 +16,11 @@ Install `make` if you don't have it already. Some of the simpler projects just u
 ```
 brew install make
 ```
-s
-More complex projects use a `bazel` based build system instead of `make`. Install `bazelisk` for that.
 
-```
-brew install bazelisk
-```
+> Note: More complex projects use a `bazel` based build system instead of `make`. Install `bazelisk` for that. These projects haven't been publicly added yet though :)
+> ```
+> brew install bazelisk
+> ```
 
 Install open source ST-Link drivers for flashing FW to your board.
 
