@@ -12,7 +12,7 @@ Well, it depends on the particular MCU, but in general something like the follow
 
 2. Some MCUs (including our STM32G0xx parts) have internal ROM bootloaders that they will jump to depending on external pin strapping (like the BOOT0 & BOOT1 pins on STM32 MCUs). For example, if the BOOT0 pin is high, the MCU will set the PC register to an internal ROM address corresponding to a bootloader and start executing from there.
 
-3. But assuming a normal boot sequence to our FW, the MCU will start executing from a specific, fixed address in flash memory. The MCU hardware will set the PC register to this fixed address upon reset. *This is where "startup" code is run*.
+3. But assuming a normal boot sequence to our firmware, the MCU will start executing from a specific, fixed address in flash memory. The MCU hardware will set the PC register to this fixed address upon reset. *This is where "startup" code is run*.
 
 4. Next, the SP (stack pointer) register needs to point to the start of the stack, which is typically the end of the RAM region - the stack grows down. Some MCUs do this in HW automatically (just like they do for the PC register), but others require doing this manually with a load register instruction. Once the stack pointer is set, we can start calling functions :).
 
@@ -156,7 +156,7 @@ Now the linkerscript just needs to outline how each section should be placed in 
 * `.bss`:
     * This section contains our *un*initialized (and zero initialized) variables that need to be placed into RAM and *zero initialized* by our startup code.
 
-These are just the bare-minimum set of sections. More complicated systems might have separate sections for an A/B FW bootloader, with FW partiion A and FW partition B, for example.
+These are just the bare-minimum set of sections. More complicated systems might have separate sections for an A/B firmware bootloader, with firmware partiion A and firmware partition B, for example.
 
 Here's what the sections look like in our `link.ld`:
 
@@ -352,13 +352,85 @@ Let's define these register addresses at the top of `blink.c`:
 #define GPIOC_ODR 0x50000814
 ```
 
+We'll also need to define a simple delay function to use between turning the LED on/off so that we can actually see it blink (humans can't really tell if a light is flickering beyond ~30Hz). We write for loop that does nothing for a large number of iterations:
+
+```
+void delay(volatile uint32_t iterations) {
+    while (iterations != 0) {
+        iterations--;
+    }
+}
+```
+
+Now we can put it all together! First, configure PC6 as an output at the start of our `main` function by writing to the `RCC_IOPENR` followed by the `GPIOC_MODER` register. Then we can enter an infinite while loop and toggle the LED on/off by writing to the `GPIOC_ODR` register, calling our `delay` function in between. For convenience (and to test that we can indeed use global/static variables and constants), I defined a default number of delay iterations in the `kDelayIterations` variable. Putting it all together, here is our `blink.c` file(!):
+
+```
+#define RCC_IOPENR 0x40021034
+#define GPIOC_MODER 0x50000800
+#define GPIOC_ODR 0x50000814
+
+static const unsigned int kDelayIterations = 1000000;
+
+void delay(volatile unsigned int iterations) {
+    while (iterations != 0) {
+        iterations--;
+    }
+}
+
+int main() {
+    *(unsigned int *)(RCC_IOPENR) |= (1 << 2);
+    *(unsigned int *)(GPIOC_MODER) = (*(unsigned int *)(GPIOC_MODER) & ~(0b11 << 12)) |
+                                     (0b01 << 12);
+
+    while(1) {
+        *(unsigned int *)(GPIOC_ODR) |= (1 << 6);
+        delay(kDelayIterations);
+        *(unsigned int *)(GPIOC_ODR) &= ~(1 << 6);
+        delay(kDelayIterations);
+    }
+
+    return 0;
+}
+
+void ResetHandler() {
+    extern unsigned int flash_data_start, ram_data_start, ram_data_end, bss_start, bss_end;
+
+    unsigned int *flash_data_src = &flash_data_start;
+    unsigned int *ram_data_dst = &ram_data_start;
+    while (ram_data_dst < &ram_data_end) {
+        *ram_data_dst++ = *flash_data_src++;
+    }
+
+    for (unsigned int *bss_idx = &bss_start; bss_idx < &bss_end; bss_idx++) {
+        *bss_idx = 0;
+    }
+
+    main();
+
+    while(1);
+}
+
+extern void initial_stack_ptr();
+
+__attribute__((section(".vector_table")))
+void (*const vector_table[16 + 32])() = {
+    initial_stack_ptr,
+    ResetHandler,
+    // Other interrupt/event handler function pointers would go here.
+};
+```
+
+> *Note*: In the final version of `blink.c` that you see in github, I replaced usage of `unsigned int` with `uint32_t` from `<stdint.h>`.
+
 ### Build & Flash
 
-Use the `Makefile` to build, flash, or clean the FW:
+Now try our from-scratch blink firmware!
+
+Use the `Makefile` to build, flash, or clean the firmware:
 
 ```
 make clean
 make flash
 ```
 
-You should see the onboard LED blinking.
+You should see the onboard LED blinking!
