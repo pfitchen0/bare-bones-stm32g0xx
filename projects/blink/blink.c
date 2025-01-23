@@ -20,7 +20,7 @@ int main() {
 
     // Set the PC6 pin mode to output
     *(uint32_t *)(GPIOC_MODER) = (*(uint32_t *)(GPIOC_MODER) & ~(0b11 << 12)) |
-                                     (0b01 << 12);
+                                 (0b01 << 12);
 
     while(1) {
         // Set the PC6 pin high
