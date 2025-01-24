@@ -44,7 +44,7 @@ Ok, now that we've summarized what we need to do in startup code before `main` b
 
 ### Install Toolchain
 
-First, follow the prerequisites section in this repository's top level [README.md](../../README.md). You can skip the part about installing `bazelisk` / `bazel`. We'll just use a Makefile for this project.
+First, follow the prerequisites section in this repository's top level [README.md](../../README.md). You can skip the part about installing `bazelisk` / `bazel`. We'll just use a Makefile for this tutorial.
 
 ### Makefile
 

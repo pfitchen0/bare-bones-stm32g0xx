@@ -1,7 +1,8 @@
 # Bare-Bones-STM32G0xx
 
-This is a "bare-bones" STM32G0xx project repository. It contains example projects that do not depend on any external sources.
+This is a "bare-bones" STM32G0xx project repository. I plan to build out a set of libraries (startup, HAL, common data structures, etc...), build systems (Make, Bazel, ... maybe CMake), tutorials (progressively build on a blinky LED example), and more complex example projects (HW & FW, TBD).
 
+For now, the first [`blink`](tutorials/blink/README.md) tutorial is live.
 
 ## Prerequisites
 
@@ -11,7 +12,7 @@ Install the ARM compiler toolchain and standard libraries. Note that the `arm-no
 brew install --cask gcc-arm-embedded
 ```
 
-Install `make` if you don't have it already. Some of the simpler projects just use `make` (like the [blink](projects/blink/README.md) example project for understanding MCU startup code and linkerscripts).
+Install `make` if you don't have it already. Some of the simpler projects just use `make` (like the [blink](tutorials/blink/README.md) example project for understanding MCU startup code and linkerscripts).
 
 ```
 brew install make
