@@ -1,4 +1,4 @@
-# Blink Demo
+# Blink From Scratch
 
 This is just a simple blink LED demo for the [Nucleo-G031K8](https://www.digikey.com/en/products/detail/stmicroelectronics/NUCLEO-G031K8/10321671) development board to demonstrate the basics of startup code and a linkerscript from scratch.
 
