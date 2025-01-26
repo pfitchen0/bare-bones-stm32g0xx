@@ -4,9 +4,9 @@
 #define GPIOC_MODER 0x50000800
 #define GPIOC_ODR 0x50000814
 
-static const uint32_t kDelayIterations = 1000000;
+static const uint32_t kBlinkDelayIterations = 1000000;
 
-void delay(volatile uint32_t iterations) {
+void DelayIterations(uint32_t iterations) {
     while (iterations != 0) {
         iterations--;
     }
@@ -26,12 +26,12 @@ int main() {
         // Set the PC6 pin high
         *(uint32_t *)(GPIOC_ODR) |= (1 << 6);
 
-        delay(kDelayIterations);
+        DelayIterations(kBlinkDelayIterations);
 
         // Set the PC6 pin low
         *(uint32_t *)(GPIOC_ODR) &= ~(1 << 6);
 
-        delay(kDelayIterations);
+        DelayIterations(kBlinkDelayIterations);
     }
 
     return 0;

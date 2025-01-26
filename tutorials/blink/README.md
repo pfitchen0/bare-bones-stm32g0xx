@@ -84,9 +84,9 @@ Next, list the linkerscript, source file, and define the intermediate and final 
 
 ```
 LDSCRIPT = link.ld
-SOURCES = blink.c
-ELF = blink.elf
-BIN = blink.bin
+SOURCES = main.c
+ELF = firmware.elf
+BIN = firmware.bin
 ```
 
 And now the `Makefile` rules:
@@ -109,7 +109,7 @@ all: $(ELF)
 .PHONY: all clean flash
 ```
 
-The above rules allow us to: (1) build and "link" our single `blink.c` file into `blink.elf`; (2) objcopy that `blink.elf` into `blink.bin` that can be directly placed in our MCU's flash memory; (3) clean our build (i.e. remove intermediate and final output files for a "clean" slate to start our next build from scratch); and (4) take `blink.bin` and place it in our STM32G031's flash memory at address `0x08000000`. From the STM32G0xx memory map defined in the [reference manual](https://www.st.com/resource/en/reference_manual/rm0444-stm32g0x1-advanced-armbased-32bit-mcus-stmicroelectronics.pdf), we can see that `0x08000000` is the starting location for our firmware programs in flash memory (this is common for every STM32 MCU that I know of, but may not be true for other MCU families - check your part's documentation). More on this to follow in the next section on linkerscripts.
+The above rules allow us to: (1) build and "link" our single `main.c` file into `firmware.elf`; (2) objcopy that `firmware.elf` into `firmware.bin` that can be directly placed in our MCU's flash memory; (3) clean our build (i.e. remove intermediate and final output files for a "clean" slate to start our next build from scratch); and (4) take `firmware.bin` and place it in our STM32G031's flash memory at address `0x08000000`. From the STM32G0xx memory map defined in the [reference manual](https://www.st.com/resource/en/reference_manual/rm0444-stm32g0x1-advanced-armbased-32bit-mcus-stmicroelectronics.pdf), we can see that `0x08000000` is the starting location for our firmware programs in flash memory (this is common for every STM32 MCU that I know of, but may not be true for other MCU families - check your part's documentation). More on this to follow in the next section on linkerscripts.
 
 The `all` and `.PHONY` targets are special `Makefile` rules. `all` is the default target that will be built if you just run `make`. `.PHONY` is used to specify which build rule targets are *not* the name of a file. So, for example, the `$(BIN)` rule is not phony, but `clean`, `flash`, and `all` are.
 
@@ -206,13 +206,13 @@ A few notes:
 * We use `ALIGN(4)` at the beginning and end of each section to ensure each section is aligned to a word boundary. It isn't strictly necessary to specify this alignment, since the vector table, for example, is already placed at a word aligned address, but it's good practice to specify alignment explicitly.
 * We define symbols that our startup code can use to copy initialized data to RAM, and zero initialize the bss section in RAM as well. We need: `flash_data_start`, `ram_data_start`, `ram_data_end`, `bss_start`, and `bss_end`.
 
-### blink.c
+### main.c
 
 #### Startup + Skeleton Code First 
 
 Finally, on to some code!
 
-We'll write everything, including the startup code, in `blink.c`. One quick note: startup code is often written in assembly. We need to be careful implementing startup code in C, because the C runtime environment won't be completely set up yet (that's what our startup code does!).
+We'll write everything, including the startup code, in `main.c`. One quick note: startup code is often written in assembly. We need to be careful implementing startup code in C, because the C runtime environment won't be completely set up yet (that's what our startup code does!).
 
 For starters, every good C program needs a `main` function. For now we'll leave it blank.
 
@@ -280,7 +280,7 @@ void (*const vector_table[16 + 32])() = {
 
 We use `__attribute__((section(".vector_table)))` to make sure this gets placed in the `.vector_table` section. In our minimal vector table, we've just placed the `initial_stack_ptr` defined in our linkerscript, and the `ResetHandler` defined above.
 
-Here's what our `blink.c` should look like now:
+Here's what our `main.c` should look like now:
 
 ```
 int main() {
@@ -344,7 +344,7 @@ The tables following the memory map in the reference manual further outline wher
 
 We can see that the RCC registers are in the **0x40021000** - **0x400213FF** region, and the GPIOC registers are in the 0x50000800 - 0x50000BFF region. Following the links in the right column of Table 6 for the RCC and GPIOC peripherals, we see Table 37 and Table 46 respectively. These tables list the offset for each register for these peripherals. This "offset" just needs to be added to the base address for both peripherals to get the final register addresses.
 
-Let's define these register addresses at the top of `blink.c`:
+Let's define these register addresses at the top of `main.c`:
 
 ```
 #define RCC_IOPENR 0x40021034
@@ -355,21 +355,21 @@ Let's define these register addresses at the top of `blink.c`:
 We'll also need to define a simple delay function to use between turning the LED on/off so that we can actually see it blink (humans can't really tell if a light is flickering beyond ~30Hz). We write for loop that does nothing for a large number of iterations:
 
 ```
-void delay(volatile uint32_t iterations) {
+void DelayIterations(uint32_t iterations) {
     while (iterations != 0) {
         iterations--;
     }
 }
 ```
 
-Now we can put it all together! First, configure PC6 as an output at the start of our `main` function by writing to the `RCC_IOPENR` followed by the `GPIOC_MODER` register. Then we can enter an infinite while loop and toggle the LED on/off by writing to the `GPIOC_ODR` register, calling our `delay` function in between. For convenience (and to test that we can indeed use global/static variables and constants), I defined a default number of delay iterations in the `kDelayIterations` variable. Putting it all together, here is our `blink.c` file(!):
+Now we can put it all together! First, configure PC6 as an output at the start of our `main` function by writing to the `RCC_IOPENR` followed by the `GPIOC_MODER` register. Then we can enter an infinite while loop and toggle the LED on/off by writing to the `GPIOC_ODR` register, calling our `delay` function in between. For convenience (and to test that we can indeed use global/static variables and constants), I defined a default number of delay iterations in the `kBlinkDelayIterations` variable. Putting it all together, here is our `main.c` file(!):
 
 ```
 #define RCC_IOPENR 0x40021034
 #define GPIOC_MODER 0x50000800
 #define GPIOC_ODR 0x50000814
 
-static const unsigned int kDelayIterations = 1000000;
+static const unsigned int kBlinkDelayIterations = 1000000;
 
 void delay(volatile unsigned int iterations) {
     while (iterations != 0) {
@@ -384,9 +384,9 @@ int main() {
 
     while(1) {
         *(unsigned int *)(GPIOC_ODR) |= (1 << 6);
-        delay(kDelayIterations);
+        delay(kBlinkDelayIterations);
         *(unsigned int *)(GPIOC_ODR) &= ~(1 << 6);
-        delay(kDelayIterations);
+        delay(kBlinkDelayIterations);
     }
 
     return 0;
@@ -420,7 +420,7 @@ void (*const vector_table[16 + 32])() = {
 };
 ```
 
-> *Note*: In the final version of `blink.c` that you see in github, I replaced usage of `unsigned int` with `uint32_t` from `<stdint.h>`.
+> *Note*: In the final version of `main.c` that you see in github, I replaced usage of `unsigned int` with `uint32_t` from `<stdint.h>`.
 
 ### Build & Flash
 

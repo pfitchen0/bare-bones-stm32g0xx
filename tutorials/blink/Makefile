@@ -32,11 +32,11 @@ LDFLAGS += -Wl,--gc-section
 LDSCRIPT = link.ld
 
 # Source files.
-SOURCES = blink.c
+SOURCES = main.c
 
 # Output files.
-ELF = blink.elf
-BIN = blink.bin
+ELF = firmware.elf
+BIN = firmware.bin
 
 # Compile and link sources into a .elf.
 $(ELF): $(SOURCES)
