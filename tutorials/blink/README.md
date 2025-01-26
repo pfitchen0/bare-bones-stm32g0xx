@@ -362,7 +362,7 @@ void DelayIterations(uint32_t iterations) {
 }
 ```
 
-Now we can put it all together! First, configure PC6 as an output at the start of our `main` function by writing to the `RCC_IOPENR` followed by the `GPIOC_MODER` register. Then we can enter an infinite while loop and toggle the LED on/off by writing to the `GPIOC_ODR` register, calling our `delay` function in between. For convenience (and to test that we can indeed use global/static variables and constants), I defined a default number of delay iterations in the `kBlinkDelayIterations` variable. Putting it all together, here is our `main.c` file(!):
+Now we can put it all together! First, configure PC6 as an output at the start of our `main` function by writing to the `RCC_IOPENR` followed by the `GPIOC_MODER` register. Then we can enter an infinite while loop and toggle the LED on/off by writing to the `GPIOC_ODR` register, calling our `DelayIterations` function in between. For convenience (and to test that we can indeed use global/static variables and constants), I defined a default number of delay iterations in the `kBlinkDelayIterations` variable. Putting it all together, here is our `main.c` file(!):
 
 ```
 #define RCC_IOPENR 0x40021034
@@ -371,7 +371,7 @@ Now we can put it all together! First, configure PC6 as an output at the start o
 
 static const unsigned int kBlinkDelayIterations = 1000000;
 
-void delay(volatile unsigned int iterations) {
+void DelayIterations(volatile unsigned int iterations) {
     while (iterations != 0) {
         iterations--;
     }
@@ -384,9 +384,9 @@ int main() {
 
     while(1) {
         *(unsigned int *)(GPIOC_ODR) |= (1 << 6);
-        delay(kBlinkDelayIterations);
+        DelayIterations(kBlinkDelayIterations);
         *(unsigned int *)(GPIOC_ODR) &= ~(1 << 6);
-        delay(kBlinkDelayIterations);
+        DelayIterations(kBlinkDelayIterations);
     }
 
     return 0;
