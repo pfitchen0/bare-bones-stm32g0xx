@@ -57,7 +57,7 @@ int main() {
     // Enable GPIOC clock by setting the GPIOCEN bit in RCC_IOPENR.
     *(uint32_t *)(RCC_IOPENR) |= (1 << 2);
 
-    // Set the PC6 pin mode to alternate function mode [cite: 18247, 18248, 18249]
+    // Set the PC6 pin mode to alternate function mode.
     *(uint32_t *)(GPIOC_MODER) = (*(uint32_t *)(GPIOC_MODER) & ~(0b11 << 12)) |
                                  (0b10 << 12);
     
@@ -75,14 +75,14 @@ int main() {
     // Configure TIM3 auto-reload register to trigger every 500 milliseconds.
     *(uint32_t *)(TIM3_ARR) = 500;
 
-    // Configure Timer 3 Channel 1 for Output Compare mode with toggle [cite: 6066, 6067, 6068, 6069, 6070, 6071]
-    // Set the OC1M bits in TIM3_CCMR1 to '011' (toggle mode) [cite: 6072, 6073, 6074, 6075, 6076, 6077, 6078, 6079, 6080, 6081, 6082, 6083, 6084, 6085, 6086]
+    // Configure Timer 3 Channel 1 for Output Compare mode with toggle.
+    // Set the OC1M bits in TIM3_CCMR1 to '011' (toggle mode).
     *(uint32_t *)(TIM3_CCMR1) |= (0b011 << 4);
 
     // Enable the output by setting the CC1E bit in TIM3_CCER.
     *(uint32_t *)(TIM3_CCER) |= (1 << 0);
 
-    // Enable TIM3 and the associated clock.
+    // Enable TIM3.
     *(uint32_t *)(TIM3_CR1) |= 1;
 
     while(1);

@@ -82,7 +82,7 @@ int main() {
     // Enable the output by setting the CC1E bit in TIM3_CCER.
     *(uint32_t *)(TIM3_CCER) |= (1 << 0);
 
-    // Enable TIM3 and the associated clock.
+    // Enable TIM3.
     *(uint32_t *)(TIM3_CR1) |= 1;
 
     // Main loop: Change the duty cycle every 500 milliseconds
