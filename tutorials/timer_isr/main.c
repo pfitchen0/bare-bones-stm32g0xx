@@ -61,6 +61,8 @@ int main() {
 
     // Enable the TIM3 clock.
     *(uint32_t *)(RCC_APBENR1) |= (1 << 1);
+    // TODO: reference manual recommends waiting until reading back the RCC enable bit matches
+    // what we just set. Update this in all tutorials wherever we enable a clock in an RCC_*ENR.
 
     // Enable the TIM3 interrupt in the Nested Vector Interrupt Controller (NVIC).
     // The TIM3 interrupt handler is the 16th (0-indexed) entry in the non-ARM part of the table.
