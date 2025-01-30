@@ -2,7 +2,7 @@
 
 This is a "bare-bones" STM32G0xx project repository. I plan to build out a set of libraries (startup, HAL, common data structures, etc...), build systems (Make, Bazel, ... maybe CMake), tutorials (progressively build on a blinky LED example), and more complex example projects (HW & FW, TBD).
 
-For now, there are two tutorials to start: [`blink`](tutorials/blink/README.md) and [`systick`](tutorials/systick/README.md).
+For now, there are only a few tutorials. Start with: [`blink`](tutorials/blink/README.md) and [`systick`](tutorials/systick/README.md) to get familiar with the startup process, linkerscripts, makefiles, the vector table, and bare-metal register poking. Then check out the series of timer tutorials, which progressively introduce topics like the NVIC controller, GPIO alt modes, and - of course - timers.
 
 ## Prerequisites
 
