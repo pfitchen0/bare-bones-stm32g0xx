@@ -74,11 +74,11 @@ int main() {
     // Configure TIM3 auto-reload register to trigger every 500 counts.
     *(uint32_t *)(TIM3_ARR) = 500;
 
-    // Enable generation of an update event to reload the prescaler.
-    *(uint32_t *)(TIM3_EGR) |= 1;
-
     // Initialize the TIM3 Channel 1 compare register to 0.
     *(uint32_t *)(TIM3_CCR1) = 0;
+
+    // Enable generation of an update event.
+    *(uint32_t *)(TIM3_EGR) |= 1;
 
     // Enable the TIM3 Channel 1 update event interrupt.
     *(uint32_t *)(TIM3_DIER) |= 1;
