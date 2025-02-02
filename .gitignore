@@ -3,4 +3,4 @@
 *.bin
 *.dump
 tutorials/timer/
-tutorials/uart/
+tutorials/clock_config/
