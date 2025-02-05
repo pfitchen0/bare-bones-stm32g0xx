@@ -62,3 +62,7 @@ int main() {
 // Same startup / ResetHandler code as before, but with Timer3Handler no longer needed.
 ...
 ```
+
+Now note that our main while loop is completely empty *and* we no longer periodically consume CPU cycles with an interrupt to toggle the LED.
+
+We also learned about GPIO alt mode and giving control of a GPIO directly to a timer! Let's extend this in the next tutorial by enabling PWM output on PC6 from TIM3 CH1.
