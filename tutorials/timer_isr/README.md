@@ -68,7 +68,7 @@ Now we can define the steps to enable TIM3 CH1 to generate a TIM3 interrupt ever
 
 2. Enable the TIM3 interrupt in the `NVIC_ISER` register as discussed above.
 
-3. Like we did in the [`systick` tutorial](../systick/README.md), configure the timer's counter to increment every millisecond. But this time, we'll use the prescalar register (`TIM3_PSC`). Set the Auto-Reload Register (`TIM3_ARR`) to 500 to generate an interrupt every 500ms instead of 1ms, and set the initial Channel 1 Compare Register (`TIM3_CCR1`) to 0 just like we did for the `SYST_CVR` in the previous tutorial.
+3. Like we did in the [`systick` tutorial](../systick/README.md), configure the timer's counter to increment every millisecond. But this time, we'll use the prescalar register (`TIM3_PSC`). Set the Auto-Reload Register (`TIM3_ARR`) to 500 to generate an interrupt every 500ms instead of 1ms.
 
 4. Enable generation of an update event, and allow an update event on TIM3 CH1 to generate a TIM3 interrupt. This requires the `TIM3_EGR` and `TIM3_DIER` registers.
 
@@ -106,7 +106,6 @@ Putting it altogether, our `main.c` file looks something like the following:
 #define CPU_FREQ_HZ 16000000  // 16 MHz
 #define TIM3_CR1 0x40000400
 #define TIM3_PSC 0x40000428
-#define TIM3_CCR1 0x40000434
 #define TIM3_ARR 0x4000042C
 #define TIM3_DIER 0x4000040C
 #define TIM3_EGR 0x40000414
@@ -125,7 +124,6 @@ int main() {
     *(uint32_t *)(NVIC_ISER) |= (1 << 16);
     *(uint32_t *)(TIM3_PSC) = (CPU_FREQ_HZ / 1000) - 1;
     *(uint32_t *)(TIM3_ARR) = 500;
-    *(uint32_t *)(TIM3_CCR1) = 0;
     *(uint32_t *)(TIM3_EGR) |= 1;
     *(uint32_t *)(TIM3_DIER) |= 1;
     *(uint32_t *)(TIM3_CR1) |= 1;
@@ -188,5 +186,3 @@ Wouldn't it be extra cool if we could allow our LED to blink without consuming *
 As an aside though, I often like to use a timer interrupt to blink an LED in my projects. The Output Capture Compare feature isn't available on all timers or all MCUs, but there's another reason I prefer to use an interrupt specifically.
 
 We can configure the timer interrupt to have the lowest priority of all our interrupts. This means that *any* other interrupt can preempt our timer interrupt. If our processor somehow gets stuck in another interrupt or thread, our LED won't be able to toggle because the associated timer interrupt never gets to run. This provides a quick visual way to tell if the processor is locked up from higher priority interrupts or not. Of course there are other ways to detect this, but I find this to be a convenient trick.
-
-TODO: more on interrupt priorities...
