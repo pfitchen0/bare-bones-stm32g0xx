@@ -1,0 +1,3 @@
+module(
+    name = "bare_bones_stm32g0xx",
+)

@@ -2,5 +2,6 @@
 *.elf
 *.bin
 *.dump
-tutorials/timer/
+bazel-*
+*MODULE.bazel.lock
 tutorials/clock_config/
