@@ -26,7 +26,7 @@ LDFLAGS = -nostartfiles
 LDFLAGS += -nostdlib --specs=nano.specs --specs=nosys.specs -lc -lgcc
 
 # Remove unused data and code after everything is linked together to reduce binary size.
-LDFLAGS += -Wl,--gc-section
+LDFLAGS += -Wl,--gc-sections
 
 # Linkerscript to use.
 LDSCRIPT = link.ld

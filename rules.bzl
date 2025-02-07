@@ -1,6 +1,6 @@
 _ARCH_FLAGS = ["-mcpu=cortex-m0plus", "-mthumb"]
 
-_C_FLAGS = ["-Wall", "-Wextra", "-g", "-O0"]
+_C_FLAGS = ["-Wall", "-Wextra", "-g", "-O0", "-I."]
 
 _LD_FLAGS = [
     "-nostartfiles",
@@ -9,7 +9,8 @@ _LD_FLAGS = [
     "--specs=nosys.specs",
     "-lc",
     "-lgcc",
-    "-Wl,--gc-section",
+    "-Wl,--gc-sections",
+    "-L.",
 ]
 
 Stm32g0xxLibraryInfo = provider(

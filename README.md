@@ -30,3 +30,25 @@ brew install stlink
 ```
 
 Order (or build!) an STM32G0xx board like the [Nucleo-G031K8](https://www.digikey.com/en/products/detail/stmicroelectronics/NUCLEO-G031K8/10321671) development board.
+
+## Bazel Toolchain
+
+This repo includes a minimalist Bazel based toolchain for building more complex STM32G0xx FW binaries and libraries. All of the Bazel rules are placed in a single `rules.bzl` file with no external dependencies.
+
+I did hardcode compiler flags to match the STM32G0xx family, but it should be easy to port this example to other embedded/MCU targets though! Just change the compiler flags and linkerscript. Or, improve these Bazel rules to support multiple MCU architectures/targets.
+
+Bazel rules and Starlark code take heavy inspiration from Jay Conrod's [fantastic blog](https://jayconrod.com/posts/106/writing-bazel-rules--simple-binary-rule) and [YouTube talk](https://youtu.be/2KUunGBZiiM?si=fHOEdGWAu-3cPlai), but for embedded C projects instead of go.
+
+There are some **caveats**:
+
+1. Include directories are still passed in the with _C_FLAGS variable
+ in the rules.bzl file. Prefer specifying absolute paths from the workspace top when
+ including header files - this is the preferred bazel design pattern anyways.
+2. Only `.c` and `.s` source files are supported. Can't use C++ or compile/link with
+ external libraries (like a `.so`) (*yet*).
+
+## TODO
+
+Only .c and .s files are accepted as sources at this time - expand that to include .cc/.cpp, .h, etc...
+
+Toolchain is tested on MacOS so far - make sure it works on Windows and Linux too.
