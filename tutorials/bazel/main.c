@@ -1,36 +1,17 @@
 #include <stdint.h>
+#include <stdbool.h>
 
-#define RCC_IOPENR 0x40021034
-#define GPIOC_MODER 0x50000800
-#define GPIOC_ODR 0x50000814
+#include "tutorials/bazel/tiny_hal.h"
 
 static const uint32_t kBlinkDelayIterations = 1000000;
 
-void DelayIterations(uint32_t iterations) {
-    while (iterations != 0) {
-        iterations--;
-    }
-}
-
 int main() {
-    // The user LED is on PC6 (i.e. port GPIOC pin 6)
+    InitLed();
 
-    // Enable GPIOC clock by setting the GPIOCEN bit in RCC_IOPENR
-    *(uint32_t *)(RCC_IOPENR) |= (1 << 2);
-
-    // Set the PC6 pin mode to output
-    *(uint32_t *)(GPIOC_MODER) = (*(uint32_t *)(GPIOC_MODER) & ~(0b11 << 12)) |
-                                 (0b01 << 12);
-
-    while(1) {
-        // Set the PC6 pin high
-        *(uint32_t *)(GPIOC_ODR) |= (1 << 6);
-
+    while(true) {
+        SetLed(true);
         DelayIterations(kBlinkDelayIterations);
-
-        // Set the PC6 pin low
-        *(uint32_t *)(GPIOC_ODR) &= ~(1 << 6);
-
+        SetLed(false);
         DelayIterations(kBlinkDelayIterations);
     }
 
@@ -73,7 +54,7 @@ void ResetHandler() {
     main();
 
     // Infinite loop in case main returns for some reason.
-    while(1);
+    while(true);
 }
 
 // Defined in the linkerscript.
