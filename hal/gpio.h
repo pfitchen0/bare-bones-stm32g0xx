@@ -7,6 +7,8 @@
 typedef struct {
     volatile uint32_t moder, otyper, ospeedr, pupdr, idr, odr, bsrr, lckr, afrl, afrh, brr;
 } GpioRegisters;
+#define GPIO_BASE 0x50000000
+#define GPIO_REGS(port) ((GpioRegisters *)(GPIO_BASE + (0x400 * (port))))
 
 typedef enum {
     kGpioA, kGpioB, kGpioC, kGpioD, kGpioE, kGpioF

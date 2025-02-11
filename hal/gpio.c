@@ -4,13 +4,10 @@
 #include <stdint.h>
 
 #include "hal/macros.h"
-
-#define RCC_IOPENR *(uint32_t *)(0x40021034)
-#define GPIO_BASE 0x50000000
-#define GPIO_REGS(port) ((GpioRegisters *)(GPIO_BASE + (0x400 * (port))))
+#include "hal/rcc.h"
 
 void ConfigureGpio(Gpio gpio, GpioSettings settings) {
-    SET_BIT(RCC_IOPENR, (1 << gpio.port));
+    SET_BIT(RCC_REGS->iopenr, (1 << gpio.port));
     MODIFY_REG(GPIO_REGS(gpio.port)->moder, (0b11 << (2 * gpio.pin)), (settings.mode << (2 * gpio.pin)));
     if (settings.mode == kOutput) {
         MODIFY_REG(GPIO_REGS(gpio.port)->otyper, (1 << gpio.pin), (settings.otype << gpio.pin));

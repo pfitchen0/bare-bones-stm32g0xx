@@ -8,5 +8,5 @@ package(
 stm32g0xx_library(
     name = "gpio",
     srcs = ["gpio.c"],
-    hdrs = ["gpio.h", "macros.h"]
+    hdrs = ["gpio.h", "macros.h", "rcc.h"]
 )
