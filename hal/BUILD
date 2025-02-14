@@ -5,8 +5,21 @@ package(
     default_visibility = ["//visibility:public"]
 )
 
+exports_files(["system.c", "stm32g031x8xx.ld"])
+
 stm32g0xx_library(
     name = "gpio",
     srcs = ["gpio.c"],
-    hdrs = ["gpio.h", "macros.h", "rcc.h"]
+    hdrs = ["gpio.h"],
+    deps = [":rcc", ":macros"],
+)
+
+stm32g0xx_library(
+    name = "rcc",
+    hdrs = ["rcc.h"],
+)
+
+stm32g0xx_library(
+    name = "macros",
+    hdrs = ["macros.h"],
 )

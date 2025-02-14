@@ -10,6 +10,7 @@ _LD_FLAGS = [
     "-lc",
     "-lgcc",
     "-Wl,--gc-sections",
+    "-Wl,--print-memory-usage",
     "-L.",
 ]
 
