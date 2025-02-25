@@ -2,10 +2,9 @@
 #include <stddef.h>
 
 extern int main();
-// extern void __libc_init_array();
 
 void* _sbrk(ptrdiff_t incr) {
-    // Linkerscript symbols:
+    // Linkerscript symbols
     extern uint8_t heap_start, initial_stack_ptr, min_stack_size;
     static uint8_t *current_heap_end = &heap_start;
 
@@ -14,8 +13,7 @@ void* _sbrk(ptrdiff_t incr) {
     uint8_t *previous_heap_end = current_heap_end;
 
     if (current_heap_end + incr > max_heap) {
-        // Heap exhausted! Return an error.
-        return NULL;
+        return NULL;  // Heap exhausted
     }
 
     current_heap_end += incr;
@@ -24,17 +22,17 @@ void* _sbrk(ptrdiff_t incr) {
 
 __attribute__((optimize("O0")))
 void ResetHandler() {
-    // Defined in the linkerscript.
+    // Linkerscript symbols
     extern uint32_t flash_data_start, ram_data_start, ram_data_end, bss_start, bss_end;
 
-    // Copy .data from flash to RAM.
+    // Copy .data from flash to RAM
     uint32_t *flash_data_src = &flash_data_start;
     uint32_t *ram_data_dst = &ram_data_start;
     while (ram_data_dst < &ram_data_end) {
         *ram_data_dst++ = *flash_data_src++;
     }
 
-    // Zero-initialize .bss section.
+    // Zero-initialize .bss section
     for (uint32_t *bss_idx = &bss_start; bss_idx < &bss_end; bss_idx++) {
         *bss_idx = 0;
     }
@@ -47,7 +45,7 @@ void ResetHandler() {
     while(1);
 }
 
-// Defined in linkerscript.
+// Defined in linkerscript
 extern void InitialStackPtr();
 
 // Define the vector table, which is an array of 16 + 32 constant function pointers.

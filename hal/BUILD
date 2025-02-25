@@ -11,7 +11,10 @@ stm32g0xx_library(
     name = "gpio",
     srcs = ["gpio.c"],
     hdrs = ["gpio.h"],
-    deps = [":rcc", ":macros"],
+    deps = [
+        ":rcc",
+        ":macros"
+    ],
 )
 
 stm32g0xx_library(
