@@ -11,6 +11,11 @@ ENTRY(ResetHandler)
 /* Store the desired initial stack pointer in a symbol for our startup code to use */
 /* Pick the end of the RAM region - the stack grows down! */
 initial_stack_ptr = ORIGIN(RAM) + LENGTH(RAM);
+InitialStackPtr = ORIGIN(RAM) + LENGTH(RAM);
+
+/* Specify minimum sizes for the heap and stack. */
+min_heap_size = 0x200;
+min_stack_size = 0x400;
 
 /* Specify how sections are arranged in memory, see README for more info */
 /* Follow best practice of explicitly word aligning the beginning and end of each section, even */
@@ -19,6 +24,7 @@ SECTIONS {
     /* Vector table first! */
     .vector_table : {
         . = ALIGN(4);
+        /* Use KEEP to tell the linker to keep the vector_table, even if it appears unused. */
         KEEP(*(.vector_table))
         . = ALIGN(4);
     } > FLASH
@@ -37,7 +43,8 @@ SECTIONS {
         . = ALIGN(4);
     } > FLASH
 
-    /* We aren't supporting C/C++ constructors or anything that would require .init_data */
+    
+    /* We aren't supporting C/C++ constructors or anything that would require .init_array */
     /* (and similar) sections, but if we were, they would go here */
 
     /* Initialized data next */
@@ -51,7 +58,7 @@ SECTIONS {
         *(.data*)
         . = ALIGN(4);
         ram_data_end = .;
-    }
+    } > RAM AT > FLASH
 
     /* Finally, uninitialized (aka zero-initialized) data */
     /* This gets placed in RAM only, and our startup code needs start and end symbols to loop */
@@ -62,5 +69,18 @@ SECTIONS {
         *(.bss*)
         . = ALIGN(4);
         bss_end = .;
+    } > RAM
+
+    /* Heap "section". Check that there is enough space for our min heap and stack sizes, */
+    /* and save heap_start symbol. Linker will complain if this section doesn't fit, thus */
+    /* warning us that there is not enough RAM for our minimum stack & heap sizes. */
+    .heap : {
+        /* Align to 8 bytes instead of just 4 (one word) */
+        /* Some datatypes (i.e. double) might have more strict alignment requirements */
+        . = ALIGN(8);
+        heap_start = .;
+        . = . + min_heap_size;
+        . = . + min_stack_size;
+        . = ALIGN(8);
     } > RAM
 }

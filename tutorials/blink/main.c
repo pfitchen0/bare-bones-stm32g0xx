@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stddef.h>
 
 #define RCC_IOPENR 0x40021034
 #define GPIOC_MODER 0x50000800
@@ -77,14 +78,31 @@ void ResetHandler() {
 }
 
 // Defined in the linkerscript.
-extern void initial_stack_ptr();
+extern void InitialStackPtr();
 
 // Define the vector table, which is an array of 16 + 32 constant function pointers.
 // There are 16 interrupt/event handlers reserved by ARM, and 32 specific to this STM32G0xx MCU.
 // Make sure this vector table array gets placed in the .vector_table section.
 __attribute__((section(".vector_table")))
 void (*const vector_table[16 + 32])() = {
-    initial_stack_ptr,
+    InitialStackPtr,
     ResetHandler,
     // Other interrupt/event handler function pointers would go here.
 };
+
+void* _sbrk(ptrdiff_t incr) {
+    // Linkerscript symbols
+    extern uint8_t heap_start, initial_stack_ptr, min_stack_size;
+    static uint8_t *current_heap_end = &heap_start;
+
+    const uint32_t stack_limit = (uint32_t)&initial_stack_ptr - (uint32_t)&min_stack_size;
+    const uint8_t *max_heap = (uint8_t *)stack_limit;
+    uint8_t *previous_heap_end = current_heap_end;
+
+    if (current_heap_end + incr > max_heap) {
+        return NULL;  // Heap exhausted
+    }
+
+    current_heap_end += incr;
+    return (void *)previous_heap_end;
+}

@@ -30,6 +30,8 @@ Well, it depends on the particular MCU, but in general something like the follow
 
 7. For MCU embedded systems, we typically expect that the `main` function finishes initializing HW peripherals and then enters an infinite while loop, thus never returning. But just in case `main` returns for some reason, it is usually a good idea to include an infinite while loop or call some kind of hard fault handler after `main` is called.
 
+8. This isn't strictly part of the startup process, but if we want to use the Heap and Dynamic Memory allocation, we need to implement the `_sbrk` function. This is what the C standard library uses under the hood for `malloc`, `calloc`, and `realloc`. The `_sbrk` function is one of what's typically called a system call. There are a bunch of these, which are used for standard C functions that interact with the runtime environment in some way (think `printf` and `scanf` for example, which would use stdout and stdin in a normal operating system environment, or think file operations). We'll need to define a few symbols in our linkerscript for the `_sbrk` function to use.
+
 ## Vector Table
 
 ARM MCUs, like the STM32G0xx series, have what's called a "Vector Table" at fixed memory address (typically the start of flash memory). The Vector Table is essentially a look-up table of addresses in memory, mostly for event/interrupt handler functions. The first entry in the vector table is the address that the stack pointer should be initialized to, and the second entry is the address of the reset handler. This is the code that the MCU starts executing immediately after power-on or reset. It typically initializes the system and sets up the MCU for operation by doing the things listed above. Basically, the second entry in the vector table should point to the startup code. The first 16 entries are reserved by ARM and are common for all ARM MCUs; the remainder of the vector table entries are for interrupt/event handlers that are specific to a particular MCU.
@@ -109,7 +111,7 @@ all: $(ELF)
 .PHONY: all clean flash
 ```
 
-The above rules allow us to: (1) build and "link" our single `main.c` file into `firmware.elf`; (2) objcopy that `firmware.elf` into `firmware.bin` that can be directly placed in our MCU's flash memory; (3) clean our build (i.e. remove intermediate and final output files for a "clean" slate to start our next build from scratch); and (4) take `firmware.bin` and place it in our STM32G031's flash memory at address `0x08000000`. From the STM32G0xx memory map defined in the [reference manual](https://www.st.com/resource/en/reference_manual/rm0444-stm32g0x1-advanced-armbased-32bit-mcus-stmicroelectronics.pdf), we can see that `0x08000000` is the starting location for our firmware programs in flash memory (this is common for every STM32 MCU that I know of, but may not be true for other MCU families - check your part's documentation). More on this to follow in the next section on linkerscripts.
+The above rules allow us to: (1) build and link our single `main.c` file into `firmware.elf`; (2) objcopy that `firmware.elf` into `firmware.bin` that can be directly placed in our MCU's flash memory; (3) clean our build (i.e. remove intermediate and final output files for a "clean" slate to start our next build from scratch); and (4) take `firmware.bin` and place it in our STM32G031's flash memory at address `0x08000000`. From the STM32G0xx memory map defined in the [reference manual](https://www.st.com/resource/en/reference_manual/rm0444-stm32g0x1-advanced-armbased-32bit-mcus-stmicroelectronics.pdf), we can see that `0x08000000` is the starting location for our firmware programs in flash memory (this is common for every STM32 MCU that I know of, but may not be true for other MCU families - check your part's documentation). More on this to follow in the next section on linkerscripts.
 
 The `all` and `.PHONY` targets are special `Makefile` rules. `all` is the default target that will be built if you just run `make`. `.PHONY` is used to specify which build rule targets are *not* the name of a file. So, for example, the `$(BIN)` rule is not phony, but `clean`, `flash`, and `all` are.
 
@@ -134,11 +136,19 @@ MEMORY {
 
 Next, specify the entry point function for the firmware. This is ultimately where our startup code is implemented. We'll get to this in a moment. Call it `ResetHandler` or something similar.
 
-It's also convenient to calculate and store the desired initial stack pointer value in the linkerscript so that our startup code can use it without needing to know the final RAM address. Again, this will be more clear when we get to the startup code.
+It's also convenient to calculate and store the desired initial stack pointer value in the linkerscript so that our startup code can use it without needing to know the final RAM address. We're actually going to want a variable and function pointer (for putting this in the vector table) to the initial stack pointer in our startup code, so I like to define duplicate symbols (this is purely a style preference).
 
 ```
 ENTRY(ResetHandler)
 initial_stack_ptr = ORIGIN(RAM) + LENGTH(RAM);
+InitialStackPtr = ORIGIN(RAM) + LENGTH(RAM);
+```
+
+Symbols specifying the minimum heap and stack sizes will also be helpful later in the linkerscrip and in our startup/system code. Pick reasonable values for you application and MCU (don't pick something too big if your MCU has limited memory).
+
+```
+min_heap_size = 0x200;
+min_stack_size = 0x400;
 ```
 
 Now the linkerscript just needs to outline how each section should be placed in memory. These are the minimum set of sections that need to be placed:
@@ -155,6 +165,9 @@ Now the linkerscript just needs to outline how each section should be placed in 
 
 * `.bss`:
     * This section contains our *un*initialized (and zero initialized) variables that need to be placed into RAM and *zero initialized* by our startup code.
+
+* `.heap`:
+    * This section represents where the heap would start. We use it to store a `heap_start` symbol for our `_sbrk` system call implementation. That's technically all we need, but we can do an extra little hack to check if we have enough space for our minimum heap and stack sizes by increasing the `.heap` section size to the sum of the minimum heap and stack sizes. This way the linker will warn us (or even throw an error) if there is not enough space left over for the minimum heap and stack sizes that we specified.
 
 These are just the bare-minimum set of sections. More complicated systems might have separate sections for an A/B firmware bootloader, with firmware partiion A and firmware partition B, for example.
 
@@ -190,7 +203,7 @@ SECTIONS {
         *(.data*)
         . = ALIGN(4);
         ram_data_end = .;
-    }
+    } > RAM AT > FLASH
 
     .bss : {
         . = ALIGN(4);
@@ -198,6 +211,16 @@ SECTIONS {
         *(.bss*)
         . = ALIGN(4);
         bss_end = .;
+    } > RAM
+
+    .heap : {
+        /* Align to 8 bytes instead of just 4 (one word) */
+        /* Some datatypes (i.e. double) might have more strict alignment requirements */
+        . = ALIGN(8);
+        heap_start = .;
+        . = . + min_heap_size;
+        . = . + min_stack_size;
+        . = ALIGN(8);
     } > RAM
 }
 ```
@@ -214,7 +237,7 @@ Finally, on to some code!
 
 We'll write everything, including the startup code, in `main.c`. One quick note: startup code is often written in assembly. We need to be careful implementing startup code in C, because the C runtime environment won't be completely set up yet (that's what our startup code does!).
 
-For starters, every good C program needs a `main` function. For now we'll leave it blank.
+For starters, every good C program needs a `main` function (though technically we can call it whatever we want). For now we'll leave it blank.
 
 ```
 int main() {
@@ -222,25 +245,26 @@ int main() {
 }
 ```
 
-Next, we need to define the `ResetHandler` function referenced by our linkerscript. This is where our startup code will go. Here's a quick summary of the startup routine, which we described earlier:
+Next, we need to define the `ResetHandler` function referenced by our linkerscript. This is where our startup code will go. We'll use an attribute to force compiler optimization level to O0, which means don't optimize at all; we want strict control over this function given that the C runtime environment isn't properly configured yet. Here's a quick summary of the startup routine, which we described earlier:
 
 1. If we did need to store the initial stack pointer in the sp register, do that first with a few assembly instructions.
 
 2. ST's example startup code calls `SystemInit`, which users can override with their own code for things like clock configuration. However, I can't think of a reason this needs to happen here rather than at the start of `main`, where the rest of the C runtime environment will be configured. I prefer to do clock (and other peripheral) initialization there, so skip this step in our code as well.
 
-3. We then copy the `.data` section from flash to RAM, and set the `.bss` section in RAM to 0. It would be nice to use things like `memcopy` and `memset`, but that might actually be a bad idea for two reasons (described below). So instead we use basic loops to do this by hand ourselves.
+3. We then copy the `.data` section from flash to RAM, and set the `.bss` section in RAM to 0. It would be nice to use things like `memcopy` and `memset`, but that would actually be a bad idea for two reasons (described below). So instead we use basic loops to do this by hand ourselves.
 
     * We might want to use this startup code in a project that does *not* need or even link in the C standard libraries containing `memcopy` and `memset`.
 
     * Even if our project includes `memcopy` and `memset`, we don't want to make any assumptions about their implementations. Remember, we are copying initialized global/static variables and constants from flash to RAM so that they can be used. Similarly we are making sure that uninitialized variables are set to 0 as we typically expect in a C program. If the `memcopy` or `memset` implementations rely on global/static initialized variables, constants, or default initialized to 0 variables, then we cannot trust their implementations in our startup code.
 
-4. If we needed to use call constructors or otherwise initialize more complex variables that cannot be initialized just with assignment prior to calling main, then we would call `__libc_init_array()` next, or implement similar functionality ourselves. Basically, we'd add the `.init_array` section to our linkerscript, and then the linker would populate this section with a bunch of function pointers to the constructors that we'd need to call at this stage in our startup code. We'd loop through that list of function pointers here, and call each one. The `__libc_init_array()` function is usually provided by whatever C library we are using (like newlib), so it is uncommon to have to write it yourself.
+4. If we needed to use call constructors or otherwise initialize more complex variables that cannot be initialized just with assignment prior to calling main, then we would call `__libc_init_array` next, or implement similar functionality ourselves. Basically, we'd add the `.init_array` section (and similar `.fini_array` sections) to our linkerscript, and then the linker would populate this section with a bunch of function pointers to the constructors that we'd need to call at this stage in our startup code. We'd loop through that list of function pointers here, and call each one. The `__libc_init_array` function is usually provided by whatever C library we are using (like newlib), so it is uncommon to have to write it yourself.
 
 5. Finally we can call `main`!
 
 6. In case `main` returns unexpectedly, add an infinite while loop at the end of our `ResetHandler`. Alternatively we could jump to some sort of hard fault handler or something similar here if we had something like that.
 
 ```
+__attribute__((optimize("O0")))
 void ResetHandler() {
     // Set stack pointer register if needed.
 
@@ -268,17 +292,17 @@ void ResetHandler() {
 Now the last thing we need to do is define the vector table. The vector table for the STM32G031K8 MCU on our Nucleo board is defined in Table 61 on pg. 312 of the [reference manual](https://www.st.com/resource/en/reference_manual/rm0444-stm32g0x1-advanced-armbased-32bit-mcus-stmicroelectronics.pdf). There are 16 Cortex-M0+ entries reserved by ARM first (as we discussed above), followed by 32 STM32G0xx-specific entries. We can define a mostly empty vector table as an array of constant function pointers like so:
 
 ```
-extern void initial_stack_ptr();
+extern void InitialStackPtr();
 
 __attribute__((section(".vector_table")))
 void (*const vector_table[16 + 32])() = {
-    initial_stack_ptr,
+    InitialStackPtr,
     ResetHandler,
     // Other event/interrupt handler function pointers would go here.
 };
 ```
 
-We use `__attribute__((section(".vector_table)))` to make sure this gets placed in the `.vector_table` section. In our minimal vector table, we've just placed the `initial_stack_ptr` defined in our linkerscript, and the `ResetHandler` defined above.
+We use `__attribute__((section(".vector_table)))` to make sure this gets placed in the `.vector_table` section. In our minimal vector table, we've just placed the `InitialStackPtr` defined in our linkerscript, and the `ResetHandler` defined above.
 
 Here's what our `main.c` should look like now:
 
@@ -287,6 +311,7 @@ int main() {
     return 0;
 }
 
+__attribute__((optimize("O0")))
 void ResetHandler() {
     // Set stack pointer register if needed.
 
@@ -310,17 +335,19 @@ void ResetHandler() {
     while(1);
 }
 
-extern void initial_stack_ptr();
+extern void InitialStackPtr();
 
 __attribute__((section(".vector_table")))
 void (*const vector_table[16 + 32])() = {
-    initial_stack_ptr,
+    InitialStackPtr,
     ResetHandler,
     // Other event/interrupt handler function pointers would go here.
 };
 ```
 
 We are almost done! Now all we need to do is update `main` to blink the user LED on/off.
+
+> We are still missing a few things to complete our C runtime environment. Namely, we are missing system call implementations for the C standard library to use. As mentioned above for example, we need `_sbrk` to use the Heap and Dynamic Memory Allocation (`malloc`, `calloc`, or `realloc` for example). We'll circle back to this after we get an LED blinking (we don't need the heap for that).
 
 #### Make the LED Blink!
 
@@ -342,7 +369,7 @@ The tables following the memory map in the reference manual further outline wher
 
 ![STM32G031xx Memory Map](../../assets/stm32g031_peripheral_memory_map.png)
 
-We can see that the RCC registers are in the **0x40021000** - **0x400213FF** region, and the GPIOC registers are in the 0x50000800 - 0x50000BFF region. Following the links in the right column of Table 6 for the RCC and GPIOC peripherals, we see Table 37 and Table 46 respectively. These tables list the offset for each register for these peripherals. This "offset" just needs to be added to the base address for both peripherals to get the final register addresses.
+We can see that the RCC registers are in the **0x40021000** - **0x400213FF** region, and the GPIOC registers are in the **0x50000800** - **0x50000BFF** region. Following the links in the right column of Table 6 for the RCC and GPIOC peripherals, we see Table 37 and Table 46 respectively. These tables list the offset for each register for these peripherals. This "offset" just needs to be added to the base address for both peripherals to get the final register addresses.
 
 Let's define these register addresses at the top of `main.c`:
 
@@ -392,6 +419,7 @@ int main() {
     return 0;
 }
 
+__attribute__((optimize("O0")))
 void ResetHandler() {
     extern unsigned int flash_data_start, ram_data_start, ram_data_end, bss_start, bss_end;
 
@@ -410,11 +438,11 @@ void ResetHandler() {
     while(1);
 }
 
-extern void initial_stack_ptr();
+extern void InitialStackPtr();
 
 __attribute__((section(".vector_table")))
 void (*const vector_table[16 + 32])() = {
-    initial_stack_ptr,
+    InitialStackPtr,
     ResetHandler,
     // Other interrupt/event handler function pointers would go here.
 };
@@ -434,3 +462,40 @@ make flash
 ```
 
 You should see the onboard LED blinking!
+
+### Syscalls, Heap, and Dynamic Memory Allocation
+
+Ok great, we've written a linkerscript, startup code, and even a small application. But we still haven't fully set up our C runtime environment yet.
+
+The C standard libraries rely on a collection of System Calls (aka syscalls) to interact with whatever system they are running on.
+
+Normally, syscalls are how a C program requests services from the operating system kernel, like reading files or allocating memory. In embedded C without a full OS, `malloc`, `calloc`, and `realloc` rely on the `_sbrk` syscall to request blocks of memory from the heap. Implementing `_sbrk` provides the necessary low-level interface to manage the heap, enabling dynamic memory allocation.
+
+Let's use `_sbrk` as our intro to system calls so we can use the heap. What does `_sbrk` need to do? It essentially keeps track of and moves a pointer that marks the end of the heap. When you ask for more memory (via `malloc`, etc.), `_sbrk` shifts this pointer upwards, allocating a larger chunk of memory. It should return `NULL` if there is not enough space left for the requested memory. Our naive implementation will just ensure that the heap doesn't grow past the minimum stack size - note that this does not protect against stack/heap overflow!
+
+We need to follow the exact function prototype that the C standard library is expecting.
+
+Here's our `_sbrk` implementation. We can put this at the end of our `main.c` file for now. `ptrdiff_t` and `NULL` are defined in `<stddef.h>`, so include that as well.
+
+```
+#include <stddef.h>
+
+...
+
+void* _sbrk(ptrdiff_t incr) {
+    // Linkerscript symbols
+    extern uint8_t heap_start, initial_stack_ptr, min_stack_size;
+    static uint8_t *current_heap_end = &heap_start;
+
+    const uint32_t stack_limit = (uint32_t)&initial_stack_ptr - (uint32_t)&min_stack_size;
+    const uint8_t *max_heap = (uint8_t *)stack_limit;
+    uint8_t *previous_heap_end = current_heap_end;
+
+    if (current_heap_end + incr > max_heap) {
+        return NULL;  // Heap exhausted
+    }
+
+    current_heap_end += incr;
+    return (void *)previous_heap_end;
+}
+```
