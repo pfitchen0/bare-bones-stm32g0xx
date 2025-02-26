@@ -58,7 +58,7 @@ CC = $(PREFIX)-gcc
 OBJCOPY = $(PREFIX)-objcopy
 ```
 
-At a minimum, the compiler needs to know the target cpu architecture. We specify this with `-mcpu=cortex-m0plus`. We also tell the compiler it can use ARM's smaller 16bit "Thumb" instructions were possible with `-mthumb` - this is common practice for resource constrained embedded systems, using thumb instructions reduces code size. Next, tell the compiler to include debugging information and *not* do any optimizations with `-g` and `-O0` respectively - this will make it easier to see what is going on under the hood after the program is compiled. Finally, enable compiler warnings with `-Wall` and `-Wextra`.
+At a minimum, the compiler needs to know the target cpu architecture. We specify this with `-mcpu=cortex-m0plus`. We also tell the compiler it can use ARM's smaller 16bit "Thumb" instructions where possible with `-mthumb` - this is common practice for resource constrained embedded systems, using thumb instructions reduces code size. Next, tell the compiler to include debugging information and *not* do any optimizations with `-g` and `-O0` respectively - this will make it easier to see what is going on under the hood after the program is compiled. We can always change the optimization level later. Finally, enable compiler warnings with `-Wall` and `-Wextra`.
 
 ```
 CFLAGS = -mcpu=cortex-m0plus -mthumb
@@ -70,16 +70,28 @@ If we were using an assembler, we'd also likely want to define a list of assembl
 
 The linker flags are a bit more interesting. First, we want to tell the linker *not* to include the standard startup code provided by the toolchain using the `-nostartfiles` flag. We want to write our own (plus, the standard startup code usually won't fit your MCU as some details vary from one MCU to another).
 
-We also tell the linker not to link against any of the standard C libraries with the `-nostdlib` flag. This is an even broader directive than `-nolibc` which is also commonly used. `-nostdlib` also excludes libraries like  `libgcc` (the GCC support library) or `libm` (the math library). We exclude these standard libraries because they are often unneeded, or larger than we can really afford for our resource constrained microcontroller-based embedded system. Instead, we allow the linker to link against a smaller and more efficient set of libraries with the `--specs=nano.specs` flag. Specifically, this tells the linker it can use the [newlib](https://en.wikipedia.org/wiki/Newlib) library. We also tell the linker to replace the standard C library functions that rely on OS syscalls with stubs using the `--specs=nosys.specs` flag. This declares a set of function stubs ("syscalls" like `_close` or `_sbrk`) that we can define if we need to emulate the behavior of a system call (like `printf`). We also add `-lc` and `-lgcc` flags to allow linking against just the bare minimum set of C standard functions like `strcmp`. While `-nostdlib` and `-lc`/`-lgcc` might seem contradictory, they can be used together to achieve fine-grained control over what parts of the standard library are available to the linker.
+We also tell the linker to link against a smaller and more efficient set of standard C libraries with the `--specs=nano.specs` flag. Specifically, this tells the linker it can use the [newlib](https://en.wikipedia.org/wiki/Newlib) library. We also tell the linker to replace the standard C library OS syscalls with stubs using the `--specs=nosys.specs` flag. This declares a set of function stubs ("syscalls" like `_close` or `_sbrk`) that we can define if we need to emulate the behavior of a system call (like `printf`).
 
-Altogether, the `-nostdlib`, `--specs=nano.specs`, `--specs=nosys.specs`, `-lc`, and `-lgcc` linker directives ensure we have a minimal C runtime environment for our STM32G0xx projects, but allow us to use functions like `strcmp` or override `printf` if we want to.
+We also add `-lc`. This flag tells the linker to link with the standard C library. This includes things like:
+* Input/output functions (like printf, scanf, fopen, fclose).
+* String manipulation functions (like strcpy, strlen).
+* Memory allocation functions (like malloc, free).
+* Mathematical functions (like sqrt, sin).
+* And many others..
+
+On top of that, we add `-lgcc`. This flag tells the linker to link with the GCC support library. This library contains functions that are used internally by the GCC compiler, such as soft floating point operations. Recall that our MCU is a Cortex-M0+, which does not support HW floating point instructions. The compiler must use "soft" floating point arithmatic instead.
+
+Altogether, these linker directives ensure we have a minimal C runtime environment for our STM32G0xx projects, but allow us to use functions like `strcmp` or override `printf` if we want to.
 
 Finally, we add `-Wl,--gc-section` to the linker flags to tell the linker to remove any unused code or data after everything is linked together (sort of like garbage collection at the end of linking).
 
+I also find it convenient to add `-Wl,--print-memory-usage` to the list of linker flags. This will print firmware size info after linking.
+
 ```
 LDFLAGS = -nostartfiles
-LDFLAGS += -nostdlib --specs=nano.specs --specs=nosys.specs -lc -lgcc
+LDFLAGS += --specs=nano.specs --specs=nosys.specs -lc -lgcc
 LDFLAGS += -Wl,--gc-section
+LDFLAGS += -Wl,--print-memory-usage
 ```
 
 Next, list the linkerscript, source file, and define the intermediate and final output .elf and .bin files:
@@ -134,21 +146,17 @@ MEMORY {
 }
 ```
 
-Next, specify the entry point function for the firmware. This is ultimately where our startup code is implemented. We'll get to this in a moment. Call it `ResetHandler` or something similar.
-
-It's also convenient to calculate and store the desired initial stack pointer value in the linkerscript so that our startup code can use it without needing to know the final RAM address. We're actually going to want a variable and function pointer (for putting this in the vector table) to the initial stack pointer in our startup code, so I like to define duplicate symbols (this is purely a style preference).
+Next, specify the entry point function for the firmware. This is ultimately where our startup code is implemented. We'll get to this in a moment. Call it `ResetHandler` or something similar. We need a symbol for the initial stack pointer that we can put in the vector table. Define that as well; I named it like a function since we'll use it as a function pointer in the vector table.
 
 ```
 ENTRY(ResetHandler)
-initial_stack_ptr = ORIGIN(RAM) + LENGTH(RAM);
 InitialStackPtr = ORIGIN(RAM) + LENGTH(RAM);
 ```
 
-Symbols specifying the minimum heap and stack sizes will also be helpful later in the linkerscrip and in our startup/system code. Pick reasonable values for you application and MCU (don't pick something too big if your MCU has limited memory).
+We also should define a max heap size symbol for use in the `_sbrk` syscall stub for memory allocation.
 
 ```
-min_heap_size = 0x200;
-min_stack_size = 0x400;
+max_heap_size = 0x200;
 ```
 
 Now the linkerscript just needs to outline how each section should be placed in memory. These are the minimum set of sections that need to be placed:
@@ -167,7 +175,7 @@ Now the linkerscript just needs to outline how each section should be placed in 
     * This section contains our *un*initialized (and zero initialized) variables that need to be placed into RAM and *zero initialized* by our startup code.
 
 * `.heap`:
-    * This section represents where the heap would start. We use it to store a `heap_start` symbol for our `_sbrk` system call implementation. That's technically all we need, but we can do an extra little hack to check if we have enough space for our minimum heap and stack sizes by increasing the `.heap` section size to the sum of the minimum heap and stack sizes. This way the linker will warn us (or even throw an error) if there is not enough space left over for the minimum heap and stack sizes that we specified.
+    * This section represents where the heap would start. We use it to store a `heap_start` symbol for our `_sbrk` system call implementation. That's technically all we need. We align `heap_start` to an 8 byte value because some types might have strict alignment requirements and could be larger than a single word in memory (I believe this is true for doubles, for example).
 
 These are just the bare-minimum set of sections. More complicated systems might have separate sections for an A/B firmware bootloader, with firmware partiion A and firmware partition B, for example.
 
@@ -214,13 +222,8 @@ SECTIONS {
     } > RAM
 
     .heap : {
-        /* Align to 8 bytes instead of just 4 (one word) */
-        /* Some datatypes (i.e. double) might have more strict alignment requirements */
         . = ALIGN(8);
         heap_start = .;
-        . = . + min_heap_size;
-        . = . + min_stack_size;
-        . = ALIGN(8);
     } > RAM
 }
 ```
@@ -471,30 +474,32 @@ The C standard libraries rely on a collection of System Calls (aka syscalls) to 
 
 Normally, syscalls are how a C program requests services from the operating system kernel, like reading files or allocating memory. In embedded C without a full OS, `malloc`, `calloc`, and `realloc` rely on the `_sbrk` syscall to request blocks of memory from the heap. Implementing `_sbrk` provides the necessary low-level interface to manage the heap, enabling dynamic memory allocation.
 
-Let's use `_sbrk` as our intro to system calls so we can use the heap. What does `_sbrk` need to do? It essentially keeps track of and moves a pointer that marks the end of the heap. When you ask for more memory (via `malloc`, etc.), `_sbrk` shifts this pointer upwards, allocating a larger chunk of memory. It should return `NULL` if there is not enough space left for the requested memory. Our naive implementation will just ensure that the heap doesn't grow past the minimum stack size - note that this does not protect against stack/heap overflow!
+Let's use `_sbrk` as our intro to system calls so we can use the heap. What does `_sbrk` need to do? It essentially keeps track of and moves a pointer that marks the end of the heap. When you ask for more memory (via `malloc`, etc.), `_sbrk` shifts this pointer upwards, allocating a larger chunk of memory. We've included a symbol in our linkerscript, `max_heap_size`, that specifies the max heap size we can use. Our `_sbrk` function should return `NULL` if allocating the requested amount of new memory would grow the heap past this limit. This will help us keep runaway heap growth under control.
 
-We need to follow the exact function prototype that the C standard library is expecting.
+> **Note**: This is an extremely naive implementation! It is generally best practice to avoid dynamic memory allocation in embedded firmware. We've capped out heap size to keep the heap from growing infinitely, but this means a call to `malloc`, for example, could fail. Be careful of this in your firmware!
 
-Here's our `_sbrk` implementation. We can put this at the end of our `main.c` file for now. `ptrdiff_t` and `NULL` are defined in `<stddef.h>`, so include that as well.
+We need to follow the exact function prototype that the C standard library is expecting. Here's our `_sbrk` implementation. We can put this at the end of our `main.c` file for now. We also need to `#include <stddef.h>` for the definition of `NULL`.
 
 ```
 #include <stddef.h>
 
 ...
 
-void* _sbrk(ptrdiff_t incr) {
-    // Linkerscript symbols
-    extern uint8_t heap_start, initial_stack_ptr, min_stack_size;
+void* _sbrk(int incr) {
+    // Linkerscript symbols.
+    // Use uint8_t for heap pointers to allow individual byte access
+    // (incrementing the pointer would increment one byte).
+    extern uint8_t heap_start;
+    extern uint32_t max_heap_size;
     static uint8_t *current_heap_end = &heap_start;
 
-    const uint32_t stack_limit = (uint32_t)&initial_stack_ptr - (uint32_t)&min_stack_size;
-    const uint8_t *max_heap = (uint8_t *)stack_limit;
-    uint8_t *previous_heap_end = current_heap_end;
-
-    if (current_heap_end + incr > max_heap) {
-        return NULL;  // Heap exhausted
+    // Check if the heap would grow past its max size, return NULL if so.
+    if ((uint32_t)(current_heap_end + incr - &heap_start) > max_heap_size) {
+        return NULL;
     }
 
+    // Save the current heap end so it can be returned, then increment heap end.
+    uint8_t *previous_heap_end = current_heap_end;
     current_heap_end += incr;
     return (void *)previous_heap_end;
 }

@@ -19,14 +19,17 @@ CFLAGS += -Wall -Wextra
 # proper initial stack pointer address.
 LDFLAGS = -nostartfiles
 
-# Linker flags for minimal runtime environment. Exclude all standard libraries for full control.
+# Linker flags for minimal runtime environment.
 # Use the much smaller newlib C runtime optimized for size and performance on microcontrollers.
 # Replace OS-dependent syscalls with stubs or minimal implementations. Allow linking against
 # specific parts of libc and libgcc if needed (e.g., for custom implementation of printf).
-LDFLAGS += -nostdlib --specs=nano.specs --specs=nosys.specs -lc -lgcc
+LDFLAGS += --specs=nano.specs --specs=nosys.specs -lc -lgcc
 
 # Remove unused data and code after everything is linked together to reduce binary size.
 LDFLAGS += -Wl,--gc-sections
+
+# Print firmware image size after linking.
+LDFLAGS += -Wl,--print-memory-usage
 
 # Linkerscript to use.
 LDSCRIPT = link.ld

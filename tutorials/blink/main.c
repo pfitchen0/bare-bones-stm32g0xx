@@ -90,19 +90,21 @@ void (*const vector_table[16 + 32])() = {
     // Other interrupt/event handler function pointers would go here.
 };
 
-void* _sbrk(ptrdiff_t incr) {
-    // Linkerscript symbols
-    extern uint8_t heap_start, initial_stack_ptr, min_stack_size;
+void* _sbrk(int incr) {
+    // Linkerscript symbols.
+    // Use uint8_t for heap pointers to allow individual byte access
+    // (incrementing the pointer would increment one byte).
+    extern uint8_t heap_start;
+    extern uint32_t max_heap_size;
     static uint8_t *current_heap_end = &heap_start;
 
-    const uint32_t stack_limit = (uint32_t)&initial_stack_ptr - (uint32_t)&min_stack_size;
-    const uint8_t *max_heap = (uint8_t *)stack_limit;
-    uint8_t *previous_heap_end = current_heap_end;
-
-    if (current_heap_end + incr > max_heap) {
-        return NULL;  // Heap exhausted
+    // Check if the heap would grow past its max size, return NULL if so.
+    if ((uint32_t)(current_heap_end + incr - &heap_start) > max_heap_size) {
+        return NULL;
     }
 
+    // Save the current heap end so it can be returned, then increment heap end.
+    uint8_t *previous_heap_end = current_heap_end;
     current_heap_end += incr;
     return (void *)previous_heap_end;
 }
