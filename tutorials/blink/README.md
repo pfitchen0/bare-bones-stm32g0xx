@@ -466,7 +466,9 @@ make flash
 
 You should see the onboard LED blinking!
 
-### Syscalls, Heap, and Dynamic Memory Allocation
+## Syscalls, Heap, and Dynamic Memory Allocation
+
+### _sbrk for Malloc, Calloc, Realloc, etc...
 
 Ok great, we've written a linkerscript, startup code, and even a small application. But we still haven't fully set up our C runtime environment yet.
 
@@ -504,3 +506,9 @@ void* _sbrk(int incr) {
     return (void *)previous_heap_end;
 }
 ```
+
+Now we can use `malloc`, `calloc`, or `realloc` if we need to! But again, try to avoid this in your embedded firmware. Static memory usage is easier to debug :). But sometimes dynamic memory allocation is necessary or useful (think some data structure implementations like resizable arrays, linked lists, etc...).
+
+### printf
+
+While on the subject of syscalls, lets add support for `printf` over our UART port...
