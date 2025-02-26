@@ -6,7 +6,7 @@ This tutorial is my attempt to understand microcontroller-based embedded systems
 
 ## Overview
 
-In this tutorial we'll build up some example STM32G0xx firmware completely from scratch. We'll start by discussing how MCUs boot, writing startup code, and setting up a minimal C runtime environment. After that we'll be able to boot into a `main` function and write/run C programs that might look more familiar to someone who hasn't gone so low level before. We'll continue to build a few simple examples to demonstrate key MCU fundamentals like memory-mapped peripherals, interrupts, and debugging.
+In this tutorial we'll build up some example STM32G0xx firmware ***completely from scratch***. We'll start by discussing how MCUs boot, writing startup code, and setting up a minimal C runtime environment. After that we'll be able to boot into a `main` function and write/run C programs that might look more familiar to someone who hasn't gone so low level before. We'll continue to build a few simple examples to demonstrate key MCU fundamentals like memory-mapped peripherals, interrupts, and debugging.
 
 Here's a rough table of contents:
 
@@ -25,6 +25,14 @@ Here's a rough table of contents:
 12. [Debugging](#debugging)
 
 ## Prerequisites
+
+### Hardware
+
+I'll be using a [Nucleo-G031K8](https://www.digikey.com/en/products/detail/stmicroelectronics/NUCLEO-G031K8/10321671) eval kit to build this tutorial, but you should be able to follow along with your own board and microcontroller. I'll try to clarify exactly what is specific to the [Nucleo-G031K8](https://www.digikey.com/en/products/detail/stmicroelectronics/NUCLEO-G031K8/10321671) and the [STM32G031K8T6](https://www.st.com/en/microcontrollers-microprocessors/stm32g031k8.html) MCU on it so that you can make your own modifications for your hardware.
+
+### Software
+
+> TODO
 
 ## MCU Startup Overview
 
