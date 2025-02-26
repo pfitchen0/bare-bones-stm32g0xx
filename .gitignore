@@ -4,5 +4,4 @@
 *.dump
 bazel-*
 *MODULE.bazel.lock
-tutorials/clock_config/
 projects/usbpd_sniffer/
