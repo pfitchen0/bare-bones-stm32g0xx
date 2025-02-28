@@ -12,10 +12,10 @@ Here's a rough table of contents:
 
 0. [Prerequisites](#prerequisites)
 1. [MCU Startup Overview](#mcu-startup-overview)
-3. [Vector Table](#vector-table)
-3. [Makefile](#makefile)
-4. [Linkerscript](#linkerscript)
-5. [Startup Code](#startup-code)
+2. [Vector Table](#vector-table)
+3. [Linkerscript](#linkerscript)
+4. [Startup Code](#startup-code)
+5. [Makefile](#makefile)
 6. [Heap and Dynamic Memory Allocation](#heap-and-dynamic-memory-allocation)
 7. [LED Blink](#led-blink)
 8. [Flashing FW](#flashing-fw)
@@ -113,19 +113,19 @@ Well, it depends on the particular MCU, but in general something like the follow
 
 7. For MCU embedded systems, we typically expect that the `main` function finishes initializing HW peripherals and then enters an infinite while loop, thus never returning. But just in case `main` returns for some reason, it is usually a good idea to include an infinite while loop or call some kind of hard fault handler after `main` is called.
 
-8. This isn't strictly part of the startup process, but if we want to use the Heap and Dynamic Memory allocation, we need to implement the `_sbrk` function. This is what the C standard library uses under the hood for `malloc`, `calloc`, and `realloc`. The `_sbrk` function is one of what's typically called a system call. There are a bunch of these, which are used for standard C functions that interact with the runtime environment in some way (think `printf` and `scanf` for example, which would use stdout and stdin in a normal operating system environment, or think file operations). We'll need to define a few symbols in our linkerscript for the `_sbrk` function to use.
+8. This isn't strictly part of the startup process, but if we want to use the Heap and Dynamic Memory allocation, we need to implement the `_sbrk` function. This is what the C standard library uses under the hood for `malloc`, `calloc`, and `realloc`. The `_sbrk` function is one of what's typically called a system call. There are a bunch of these, which are used for standard C functions that interact with the runtime environment in some way (think `printf` and `scanf` for example, which would use stdout and stdin in a normal operating system environment, or think file operations). We'll need to define a few symbols in our linkerscript for the `_sbrk` function to use, but we won't add support for the heap and dynamic memory allocation until later in this tutorial.
 
 ## Vector Table
 
 ARM MCUs, like the STM32G0xx series we're using, have what's called a "Vector Table" at fixed memory address (typically the start of flash memory). The Vector Table is essentially a look-up table of addresses in memory, mostly for event/interrupt handler functions. The first entry in the vector table is the address that the stack pointer should be initialized to, and the second entry is the address of the reset handler. This is the code that the MCU starts executing immediately after power-on or reset. It typically initializes the system and sets up the MCU for operation by doing the things listed above. Basically, the second entry in the vector table should point to the startup code. The first 16 entries are reserved by ARM and are common for all ARM MCUs; the remainder of the vector table entries are for interrupt/event handlers that are specific to a particular MCU.
 
-## Makefile
-
-It might be helpful to keep the official `make` [documentation](https://www.gnu.org/software/make/) on hand.
-
 ## Linkerscript
 
 ## Startup Code
+
+## Makefile
+
+It might be helpful to keep the official `make` [documentation](https://www.gnu.org/software/make/) on hand.
 
 ## Heap and Dynamic Memory Allocation
 
