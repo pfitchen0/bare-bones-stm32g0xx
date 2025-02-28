@@ -2,7 +2,7 @@
 
 *"If you can't explain it simply, you don't understand it well enough"* -Albert Einstein (I think).
 
-This tutorial is my attempt to understand microcontroller-based embedded systems programming more deeply by explaining it here, simply.
+This tutorial is my attempt to understand microcontroller-based embedded systems programming more deeply by explaining them here, simply.
 
 ## Overview
 
@@ -44,19 +44,22 @@ Ultmately, any ARM based MCU should work for this tutorial. It doesn't even need
 
 We'll need to be able to compile and link our code for our ARM MCU target instead of our PC. This is called cross-compilation; we'll compile code for one platform (MCU) on another platform (our PCs). You might already be familiar with the GNU `gcc`, `objcopy`, `ld`, etc... tools. Luckily equivalents of those are available for building code for our embedded ARM MCU target. We'll also want to install versions of the standard C libraries that are optimized for ARM MCUs.
 
-> TODO: note on installing Make and stlink tools!
+We'll also want to use `make` to make repeated builds at each step of this tutorial easier and repeatable. `make` automates software builds by tracking file dependencies and executing only necessary compilation steps, saving time and reducing errors. It simplifies complex build processes by using a `Makefile` to define rules, making projects easier to manage and maintain. We'll write out own `Makefile` to use throughout this tutorial momentarily.
+
+And finally, we need a tool to flash FW into our MCU. There are a bunch of options out there for this, but I think the easiest one to start with (assuming you are also using an STM32) is the open source `stlink-tools`/`stlink` package, which includes command line utilities for working with STM32s. Another great option is `openocd`, which can be used with other MCUs as well as STM32s, and it is useful for debugging. We'll start with `stlink-tools`/`stlink` and then shift to `openocd` once we start learning about in circuit debugging on our MCU.
 
 #### MacOS
 
-Note that the `arm-none-eabi-gcc` homebrew package includes only the ARM compiler toolchain and not the C/C++ standard libraries. Therefore, `gcc-arm-embedded` is preferred as it includes the C/C++ standard libraries as well.
+Note that the `arm-none-eabi-gcc` homebrew package includes only the ARM compiler toolchain and not the C/C++ standard libraries. Therefore, `gcc-arm-embedded` is preferred as it includes the C/C++ standard libraries as well. Install `make` if you don't have it already, `stlink`, and `openocd` as well.
 
 ```
 brew install --cask gcc-arm-embedded
+brew install make stlink
 ```
 
 #### Linux
 
-Most Linux distros host the toolchain and libraries that we need to install. Try the following:
+Most Linux distros host the embedded toolchain and libraries that we need to install. Try the following:
 
 ```
 sudo apt update
@@ -65,13 +68,27 @@ sudo apt install gcc-arm-none-eabi
 
 > One thing to be aware of: this install might not include some of the C libraries that we want for some distros.
 
+ Install `make` if you don't have it already, `stlink-tools`, and `openocd` as well. `stlink-tools` on Linux is pretty much the same think as `stlink` on Mac; the package managers used different names. `stlink-tools` might be inclusive of additional tools, but we just need `stflash`, which is included.
+
+ ```
+ sudo apt install make stlink-tools
+ ```
+
+ Check out the `stlink` [github page](https://github.com/stlink-org/stlink) if you are having issues, or if `stlink-tools` isn't availabe in your distro's package manager.
+
 #### Windows
 
 I'd recommend following the [instructions from ARM](https://learn.arm.com/install-guides/gcc/arm-gnu/) directly. I have not been able to test this out myself unfortunately.
 
+I think `make` can be installed for Windows [here](https://gnuwin32.sourceforge.net/packages/make.htm), but again, I can't confirm this.
+
+And you can follow the instructions on the `stlink` [github page](https://github.com/stlink-org/stlink) for instructions on how to install that on Windows.
+
 ## MCU Startup Overview
 
 ## Makefile
+
+It might be helpful to keep the official `make` [documentation](https://www.gnu.org/software/make/) on hand.
 
 ## Linkerscript
 
