@@ -12,18 +12,19 @@ Here's a rough table of contents:
 
 0. [Prerequisites](#prerequisites)
 1. [MCU Startup Overview](#mcu-startup-overview)
-2. [Makefile](#makefile)
-3. [Linkerscript](#linkerscript)
-4. [Startup Code](#startup-code)
-5. [Heap and Dynamic Memory Allocation](#heap-and-dynamic-memory-allocation)
-6. [LED Blink](#led-blink)
-7. [Flashing FW](#flashing-fw)
-8. [SysTick](#systick)
-9. [Clock Configuration](#clock-configuration)
-10. [Timers](#timers)
-11. [UART](#uart)
-12. [Printf](#printf)
-13. [Debugging](#debugging)
+3. [Vector Table](#vector-table)
+3. [Makefile](#makefile)
+4. [Linkerscript](#linkerscript)
+5. [Startup Code](#startup-code)
+6. [Heap and Dynamic Memory Allocation](#heap-and-dynamic-memory-allocation)
+7. [LED Blink](#led-blink)
+8. [Flashing FW](#flashing-fw)
+9. [SysTick](#systick)
+10. [Clock Configuration](#clock-configuration)
+11. [Timers](#timers)
+12. [UART](#uart)
+13. [Printf](#printf)
+14. [Debugging](#debugging)
 
 ## Prerequisites
 
@@ -85,6 +86,38 @@ I think `make` can be installed for Windows [here](https://gnuwin32.sourceforge.
 And you can follow the instructions on the `stlink` [github page](https://github.com/stlink-org/stlink) for instructions on how to install that on Windows.
 
 ## MCU Startup Overview
+
+Before we can start writing some code, let's review how an MCU boots up. In other words, **_what happens before `main`?_**
+
+Well, it depends on the particular MCU, but in general something like the following:
+
+1. MCU hardware boots up: power supply(ies) finish ramping up, internal PLL(s) lock / minimum clock configuration is initialized, etc...
+
+2. Some MCUs (including our STM32G0xx parts) have internal ROM bootloaders that they will jump to depending on external pin strapping (like the BOOT0 & BOOT1 pins on STM32 MCUs). For example, if the BOOT0 pin is high, the MCU will set the PC register to an internal ROM address corresponding to a bootloader and start executing from there.
+
+3. But assuming a normal boot sequence to our firmware, the MCU will start executing from a specific, fixed address in flash memory. The MCU hardware will set the PC register to this fixed address upon reset. *This is where "startup" code is run*.
+
+4. Next, the SP (stack pointer) register needs to point to the start of the stack, which is typically the end of the RAM region - the stack grows down. Some MCUs do this in HW automatically (just like they do for the PC register), but others require doing this manually with a load register instruction. Once the stack pointer is set, we can start calling functions :).
+
+5. Then the C (& C++ if we use it) runtime environment needs to get initialized. There are a few steps to this:
+
+    a. Copy global and static variables to RAM so they can be modified during runtime.
+
+    b. Initialize uninitialized variables to zero. Upon reset, RAM may not be initialized to 0, so we cannot assume our uninitialized variables are default initialized to 0 or null like we expect unless we do this manually in our startup code.
+
+    > **c. Only for C++ programs, or C programs with functions marked with `__attribute__((constructor))`**: Call `__libc_init_array`. This function calls static/global variable constructors and otherwise initializes more complex static/global variables that can't simply be initialized with assignment. How this works: linker magic...
+    > * The linker collects a list of function pointers to constructors/initialization functions that need to be called. This list gets stored in a special memory section typically defined in the linkerscript as `.init_array`.
+    > * The startup code loops through the function pointers in the `.init_array` section and calls each one.
+
+6. Finally, we can call `main`!
+
+7. For MCU embedded systems, we typically expect that the `main` function finishes initializing HW peripherals and then enters an infinite while loop, thus never returning. But just in case `main` returns for some reason, it is usually a good idea to include an infinite while loop or call some kind of hard fault handler after `main` is called.
+
+8. This isn't strictly part of the startup process, but if we want to use the Heap and Dynamic Memory allocation, we need to implement the `_sbrk` function. This is what the C standard library uses under the hood for `malloc`, `calloc`, and `realloc`. The `_sbrk` function is one of what's typically called a system call. There are a bunch of these, which are used for standard C functions that interact with the runtime environment in some way (think `printf` and `scanf` for example, which would use stdout and stdin in a normal operating system environment, or think file operations). We'll need to define a few symbols in our linkerscript for the `_sbrk` function to use.
+
+## Vector Table
+
+ARM MCUs, like the STM32G0xx series we're using, have what's called a "Vector Table" at fixed memory address (typically the start of flash memory). The Vector Table is essentially a look-up table of addresses in memory, mostly for event/interrupt handler functions. The first entry in the vector table is the address that the stack pointer should be initialized to, and the second entry is the address of the reset handler. This is the code that the MCU starts executing immediately after power-on or reset. It typically initializes the system and sets up the MCU for operation by doing the things listed above. Basically, the second entry in the vector table should point to the startup code. The first 16 entries are reserved by ARM and are common for all ARM MCUs; the remainder of the vector table entries are for interrupt/event handlers that are specific to a particular MCU.
 
 ## Makefile
 
