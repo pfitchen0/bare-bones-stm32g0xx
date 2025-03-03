@@ -121,6 +121,111 @@ ARM MCUs, like the STM32G0xx series we're using, have what's called a "Vector Ta
 
 ## Linkerscript
 
+Before we can compile our firmware into a final binary for the STM32G0 MCU, we'll need to define a linkerscript that tells the linker where to put various things in memory. We'll write and then use the same linkerscript from scratch for all of these tutorials, so let's create a file `link.ld` in the tutorial top level directory. Now let's get into the linkerscript implementation...
+
+Keep the STM32G031xx [datasheet](https://www.st.com/resource/en/datasheet/stm32g031c6.pdf) and [reference manual](https://www.st.com/resource/en/reference_manual/rm0444-stm32g0x1-advanced-armbased-32bit-mcus-stmicroelectronics.pdf) handy for this section. Feel free to reference [this template linkerscript](https://github.com/STMicroelectronics/STM32CubeG0/blob/master/Projects/NUCLEO-G031K8/Templates/STM32CubeIDE/STM32G031K8TX_FLASH.ld) from ST as well.
+
+The linkerscript tells the linker how to arrange everything in memory in the final binary. Therefore, the linkerscript must first describe the flash and RAM memory partitions of the target MCU. From pg. 61 of the [reference manual](https://www.st.com/resource/en/reference_manual/rm0444-stm32g0x1-advanced-armbased-32bit-mcus-stmicroelectronics.pdf):
+
+![STM32G031xx Memory Map](assets/stm32g031_memory_map.png)
+
+Flash memory starts at 0x08000000 and is 64KB long. RAM starts at 0x20000000 and is 8KB long. Specify this in `link.ld` with the following:
+
+```
+MEMORY {
+    FLASH (RX) : ORIGIN = 0x08000000, LENGTH = 64K
+    RAM (RWX) : ORIGIN = 0x20000000, LENGTH = 8K
+}
+```
+
+> **NOTE:** If you are following along with a different MCU, all you need to do is modify these section definitions to match your MCU.
+
+Next, specify the entry point function for the firmware. This is ultimately where our startup code is implemented. We'll get to this in a moment. Call it `ResetHandler` or something similar. We need a symbol for the initial stack pointer that we can put in the vector table. Define that as well; I named it like a function since we'll use it as a function pointer in the vector table.
+
+```
+ENTRY(ResetHandler)
+InitialStackPtr = ORIGIN(RAM) + LENGTH(RAM);
+```
+
+We also should define a max heap size symbol for use in the `_sbrk` syscall stub for memory allocation.
+
+```
+max_heap_size = 0x200;
+```
+
+Now the linkerscript just needs to outline how each section should be placed in memory. These are the minimum set of sections that need to be placed:
+* `.vector_table`:
+    * This is the Vector Table describer earlier. It's basically a look up take for interrupt/event handlers, starting with the ResetHandler (our startup code). It also stores the initial stack, which is actually placed first in the LUT (then the ResetHandler and all other handler function pointers follow). The Vector Table must be placed right at the start of flash memory (you can technically move the vector table, but you must remap each entry accordingly - it's good practice to avoid doing this unless absolutely necessary). We explicitly tell the linker not to rearrange or move the vector table with the `KEEP` macro. Also, we can name this section whatever we'd like, so long as it matches our startup code; I chose "vector_table", but the standard CMSIS template from ST uses "isr_vectors".
+* `.text`:
+    * This section contains our program code. We place this section in flash memory.
+* `.rodata`:
+    * This section contains read only data like constants or string literals. It gets placed in flash memory as well, typically right after the `.text` section (and some linker scripts place it within the `.text` section).
+* `.data`:
+    * This section contains our initialized variables that need to be copied into RAM by our startup code.
+
+> * `.init_array` and similar: In C programs with functions marked as `__attribute__((constructor))`, or C++ programs with classes, there might be sections called `.preinit_array`, `.init_array`, and `.fini_array`. These sections are used to provide a well-defined order of initialization of global/static variables that might need to have constructors called during startup. This is handled in our startup code by calling `__libc_init_array` as discussed earlier. To keep things simple, we will not include these sections in the linkerscript and therefore will avoid using constructors.
+
+* `.bss`:
+    * This section contains our *un*initialized (and zero initialized) variables that need to be placed into RAM and *zero initialized* by our startup code.
+
+* `.heap`:
+    * This section represents where the heap would start. We use it to store a `heap_start` symbol for our `_sbrk` system call implementation. That's technically all we need. We align `heap_start` to an 8 byte value because some types might have strict alignment requirements and could be larger than a single word in memory (I believe this is true for doubles, for example).
+
+These are just the bare-minimum set of sections. More complicated systems might have separate sections for an A/B firmware bootloader, with firmware partiion A and firmware partition B, for example.
+
+Here's what the sections look like in our `link.ld`:
+
+```
+SECTIONS {
+    .vector_table : {
+        . = ALIGN(4);
+        KEEP(*(.vector_table))
+        . = ALIGN(4);
+    } > FLASH
+
+    .text : {
+        . = ALIGN(4);
+        *(.text*)
+        . = ALIGN(4);
+    } > FLASH
+
+    .rodata : {
+        . = ALIGN(4);
+        *(.rodata*)
+        . = ALIGN(4);
+    } > FLASH
+
+    /* We aren't supporting C/C++ constructors or anything that would require .init_data */
+    /* (and similar) sections, but if we were, they would go here */
+
+    flash_data_start = LOADADDR(.data);
+    .data : {
+        . = ALIGN(4);
+        ram_data_start = .;
+        *(.data*)
+        . = ALIGN(4);
+        ram_data_end = .;
+    } > RAM AT > FLASH
+
+    .bss : {
+        . = ALIGN(4);
+        bss_start = .;
+        *(.bss*)
+        . = ALIGN(4);
+        bss_end = .;
+    } > RAM
+
+    .heap : {
+        . = ALIGN(8);
+        heap_start = .;
+    } > RAM
+}
+```
+
+A few notes:
+* We use `ALIGN(4)` at the beginning and end of each section to ensure each section is aligned to a word boundary. It isn't strictly necessary to specify this alignment, since the vector table, for example, is already placed at a word aligned address, but it's good practice to specify alignment explicitly.
+* We define symbols that our startup code can use to copy initialized data to RAM, and zero initialize the bss section in RAM as well. We need: `flash_data_start`, `ram_data_start`, `ram_data_end`, `bss_start`, and `bss_end`.
+
 ## Startup Code
 
 ## Makefile
